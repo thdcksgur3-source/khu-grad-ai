@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>경영대 졸업사정표 — 학번별 졸업요건 진단</title>
+<meta name="description" content="경희대학교 경영대학 19~26학번 학생이 학번·학과별 시행세칙 기준으로 졸업요건을 점검하고 다전공·마이크로디그리·다음 학기 과목을 추천받는 도구">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topband"><div class="top">
+  <div>
+    <p class="eyebrow">2026 KHU AI Challenge · 경영대학 19~26학번</p>
+    <h1>경영대 졸업사정표</h1>
+    <p>같은 경영대학이어도 학번마다 졸업요건이 달라요. 내 학번과 들은 과목을 넣으면 시행세칙 기준으로 무엇이 남았는지 바로 보여 드려요.</p>
+  </div>
+  <div class="top-side">
+    <p class="privacy">입력한 성적은 이 브라우저 안에서만 계산돼요. 서버로 보내거나 저장하지 않으니, 창을 닫으면 사라져요.</p>
+    <span class="mascot"><img src="assets/kuong.png" alt="경희대 캐릭터 쿠옹과 쿠밍" width="261" height="221"></span>
+  </div>
+</div></header>
+
+<main class="layout">
+  <aside class="panel" aria-label="내 정보 입력">
+    <section class="field">
+      <h2>예시 학생으로 먼저 보기</h2>
+      <div class="btnrow" id="samples">
+        <button class="btn ghost small" type="button" data-sample="acct">회계·세무 21학번</button>
+        <button class="btn ghost small" type="button" data-sample="mgmt">경영 24학번</button>
+        <button class="btn ghost small" type="button" data-sample="bdas">빅데이터 22학번</button>
+      </div>
+    </section>
+
+    <section class="field stack">
+      <h2>내 학번과 학과</h2>
+      <div><label class="lbl" for="year">입학년도</label><select id="year"></select></div>
+      <div><span class="lbl">학과</span>
+        <div class="seg" id="dept" role="group" aria-label="학과">
+          <button type="button" data-v="경영학과">경영학과</button>
+          <button type="button" data-v="회계·세무학과">회계·세무학과</button>
+          <button type="button" data-v="빅데이터응용학과">빅데이터응용학과</button>
+        </div>
+        <p class="msg" id="deptmsg" aria-live="polite" style="margin:6px 0 0"></p>
+      </div>
+      <div><span class="lbl">전공 이수 형태</span>
+        <div class="seg" id="track" role="group" aria-label="전공 이수 형태">
+          <button type="button" data-v="single">단일전공</button>
+          <button type="button" data-v="multi">다전공 (1전공 기준)</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="field">
+      <h2>과목 목록 <span class="msg" id="ccount"></span></h2>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="paste">졸업진단표·성적 불러오기</button>
+        <button type="button" role="tab" data-tab="search">과목 검색해서 추가</button>
+      </div>
+      <div id="pane-paste" class="stack">
+        <p class="hint">인포21 졸업사정 조회에서 나오는 <b>졸업진단표</b>를 PDF로 저장해 올리면 학번·학과·과목이 한 번에 들어가요. 진단표나 성적조회 표 내용을 복사해서 붙여넣어도 돼요.</p>
+        <div class="btnrow"><label class="btn" for="pdf" style="cursor:pointer">졸업진단표 PDF 올리기</label><input type="file" id="pdf" accept="application/pdf,.pdf" class="sr-only"></div>
+        <label class="sr-only" for="paste">성적 붙여넣기</label>
+        <textarea id="paste" placeholder="2023	1	전공기초	ACCT1001	회계원리	3	A+"></textarea>
+        <div class="btnrow"><button class="btn ghost" type="button" id="parse">붙여넣은 내용 불러오기</button><button class="btn ghost small" type="button" id="paste-example">붙여넣기 예시 채우기</button></div>
+        <p class="msg" id="parsemsg" aria-live="polite"></p>
+      </div>
+      <div id="pane-search" hidden>
+        <label class="sr-only" for="q">과목 검색</label>
+        <input type="search" id="q" placeholder="과목명이나 학수번호 (예: 재무회계, MGMT2004)" autocomplete="off">
+        <ul class="suggest" id="suggest"></ul>
+      </div>
+      <ul class="clist" id="clist"></ul>
+      <div class="btnrow" style="margin-top:8px"><button class="btn ghost small" type="button" id="clear">과목 모두 지우기</button></div>
+    </section>
+
+    <section class="field stack" id="cur-field">
+      <h2>이번 학기 듣는 과목 <span class="msg" id="curterm"></span></h2>
+      <p class="hint">재학생 졸업진단표는 이번 학기 과목도 [금학기수강학점]에 담겨 있어서 자동으로 들어가요. 빠진 과목이 있거나 성적표로 입력했다면 여기서 추가하세요. <b>이번 학기를 마친 뒤</b> 기준으로 남은 학점과 다음 학기 계획을 계산해요.</p>
+      <div><label class="sr-only" for="q2">이번 학기 과목 검색</label>
+        <input type="search" id="q2" placeholder="과목명이나 학수번호로 찾아서 추가" autocomplete="off">
+        <ul class="suggest" id="suggest2"></ul></div>
+      <details><summary class="msg" style="cursor:pointer">수강신청 내역을 붙여넣어서 한 번에 넣기</summary>
+        <label class="sr-only" for="paste2">수강신청 내역 붙여넣기</label>
+        <textarea id="paste2" style="margin-top:8px" placeholder="MGMT2010-01	투자론	3"></textarea>
+        <div class="btnrow" style="margin-top:6px"><button class="btn ghost small" type="button" id="parse2">수강 중 과목으로 불러오기</button></div>
+      </details>
+      <p class="msg" id="curmsg" aria-live="polite"></p>
+      <div><label class="lbl" for="maxcr">다음 학기부터 한 학기에 들을 학점</label>
+        <select id="maxcr"><option value="12">12학점</option><option value="15">15학점</option><option value="18">18학점</option><option value="19">19학점</option><option value="21">21학점</option></select></div>
+    </section>
+
+    <section class="field stack">
+      <h2>교양과 기타 요건</h2>
+      <div><span class="lbl">필수교과 (목록에 있으면 자동 체크)</span><div class="checks" id="libreq"></div>
+        <div class="checks" style="margin-top:6px"><label><input type="checkbox" id="engExempt"> 대학영어 면제받음</label></div></div>
+      <div class="row2">
+        <div><label class="lbl" for="dist">배분이수 추가 학점</label><input type="number" id="dist" min="0" max="40" inputmode="numeric" placeholder="0"></div>
+        <div><label class="lbl" for="free">자유이수 추가 학점</label><input type="number" id="free" min="0" max="40" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div id="areas-wrap"><span class="lbl">배분이수로 들은 영역 (24학번부터 3개 영역 필요)</span><div class="checks" id="areas"></div></div>
+      <div class="row2">
+        <div><label class="lbl" for="general">일반선택 등 그 밖의 학점</label><input type="number" id="general" min="0" max="80" inputmode="numeric" placeholder="0"></div>
+        <div><label class="lbl" for="sw">SW 교과목 학점</label><input type="number" id="sw" min="0" max="20" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <p class="hint" style="margin:0">목록에 넣지 않은 과목의 학점만 적으세요. 붙여넣기로 불러온 과목은 자동으로 더해져요.</p>
+      <div class="checks" style="grid-template-columns:1fr">
+        <label><input type="checkbox" id="exam"> 졸업시험(졸업프로젝트) 통과 또는 대체요건 충족</label>
+        <label><input type="checkbox" id="thesis"> 졸업논문 과목 수강신청 완료</label>
+      </div>
+    </section>
+  </aside>
+
+  <article class="sheet" id="sheet" aria-live="off"></article>
+</main>
+
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
