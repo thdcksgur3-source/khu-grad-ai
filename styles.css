@@ -301,3 +301,4 @@ table.wd td:nth-child(5) { white-space: nowrap !important; }
   .layout { padding-bottom: 96px; }
 }
 @media print { .ck-dock { display: none; } }
+.swtag.engtag { background: #2f6b4f; }

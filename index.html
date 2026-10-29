@@ -105,7 +105,10 @@
         <div><label class="lbl" for="general">일반선택 등 그 밖의 학점</label><input type="number" id="general" min="0" max="80" inputmode="numeric" placeholder="0"></div>
         <div><label class="lbl" for="sw">목록에 없는 SW 학점</label><input type="number" id="sw" min="0" max="20" inputmode="numeric" placeholder="0"></div>
       </div>
-      <p class="hint" style="margin:0">목록에 넣지 않은 과목의 학점만 적으세요. 붙여넣기로 불러온 과목은 자동으로 더해져요.</p>
+      <div class="row2" style="margin-top:10px">
+        <div><label class="lbl" for="engx">목록에 없는 영어강의 과목 수</label><input type="number" id="engx" min="0" max="10" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <p class="hint" style="margin:0">목록에 넣지 않은 과목의 학점·과목 수만 적으세요. 진단표로 불러온 과목은 SW·영어강의 표시까지 자동으로 세요.</p>
       <div class="checks" style="grid-template-columns:1fr">
         <label><input type="checkbox" id="exam"> 졸업시험(졸업프로젝트) 통과 또는 대체요건 충족</label>
         <label><input type="checkbox" id="thesis"> 졸업논문 과목 수강신청 완료</label>

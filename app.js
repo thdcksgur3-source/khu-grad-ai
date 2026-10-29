@@ -11,21 +11,21 @@
   const SAMPLES = {
     acct: {
       name: '4학년 2학기 재학 중',
-      year: 2021, dept: '회계·세무학과', track: 'single', sw: 3, examDone: false, thesisDone: false,
+      year: 2021, dept: '회계·세무학과', track: 'single', sw: 3, engManual: 3, examDone: false, thesisDone: false,
       courses: list('회계원리,경영통계학,경제학원론,책임경영,관리회계1,세무회계1,재무회계1,재무관리,마케팅원론,경영정보시스템,세법총론,관리회계2,고급회계,회계감사,세무회계2,회사법,유가증권법,재무제표분석,투자론,경영과학,소비자행동론,인간의가치탐색,세계와시민,빅뱅에서문명까지,성찰과표현,대학영어')
         .concat(ipList('재무회계2,조직행동론,주제연구,회계이론,금융파생상품론')),
       liberal: { dist: 12, free: 3, general: 6, areas: [] },
     },
     mgmt: {
       name: '3학년 2학기 재학 중',
-      year: 2024, dept: '경영학과', track: 'single', sw: 0, examDone: false, thesisDone: false,
+      year: 2024, dept: '경영학과', track: 'single', sw: 0, engManual: 1, examDone: false, thesisDone: false,
       courses: list('경영통계학,경영학원론,책임경영,회계원리,마케팅원론,재무관리,조직행동론,경영정보시스템,소비자행동론,마케팅조사론,디지털마케팅,통계기반데이터분석,경영커뮤니케이션,인간의가치탐색,세계와시민,성찰과표현,대학영어')
         .concat(ipList('생산운영관리,관리회계1,마케팅전략,빅뱅에서문명까지,피플애널리틱스')),
       liberal: { dist: 6, free: 3, general: 12, areas: ['상징·문화·소통', '사회·공동체·평화'] },
     },
     bdas: {
       name: '4학년 2학기 재학 중',
-      year: 2022, dept: '빅데이터응용학과', track: 'single', sw: 0, examDone: false, thesisDone: false,
+      year: 2022, dept: '빅데이터응용학과', track: 'single', sw: 0, engManual: 3, examDone: false, thesisDone: false,
       courses: list('경영통계학,경제학원론,회계원리,책임경영,빅데이터수학,빅데이터프로그래밍1,빅데이터통계학,마케팅원론,재무관리,조직행동론,빅데이터프로그래밍2,빅데이터세미나,머신러닝기초및응용,빅데이터개론,투자론,비즈니스애널리틱스,인간의가치탐색,세계와시민,빅뱅에서문명까지,성찰과표현,주제연구,대학영어')
         .concat(ipList('DB기초및응용,소셜네트워크과학,딥러닝기초및응용,빅데이터알고리즘')),
       liberal: { dist: 12, free: 3, general: 15, areas: [] },
@@ -44,7 +44,7 @@
   ].join('\n');
 
   const state = {
-    year: 2024, dept: '경영학과', track: 'single', sw: 0, examDone: false, thesisDone: false,
+    year: 2024, dept: '경영학과', track: 'single', sw: 0, engManual: 0, examDone: false, thesisDone: false,
     courses: [], liberal: { dist: 0, free: 0, general: 0, areas: [], reqChecked: [], engExempt: false },
     interests: [], tab: 'paste', sampleName: null, official: null, maxCr: 18, view: 'audit', withdraw: [],
   };
@@ -72,6 +72,7 @@
     $('#free').value = state.liberal.free || '';
     $('#general').value = state.liberal.general || '';
     $('#sw').value = state.sw || '';
+    $('#engx').value = state.engManual || '';
     $('#exam').checked = state.examDone;
     $('#thesis').checked = state.thesisDone;
     $('#engExempt').checked = state.liberal.engExempt;
@@ -94,7 +95,7 @@
     const sorted = [...items].sort((a, b) => (b.ip ? 1 : 0) - (a.ip ? 1 : 0));
     ul.innerHTML = sorted.map((c) => `<li>
       <div>${esc(c.t)} <span class="meta">${esc(c.cr)}학점${c.grp && c.kind === '전공선택' ? `, ${esc(c.grp)}과목군${c.unsure ? ' (세칙 목록 밖, 확인 필요)' : ''}` : ''}</span></div>
-      <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}${K.isSw(c) ? '<b class="swtag" title="SW 졸업요건 인정 과목">SW</b>' : ''}</span>
+      <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}${K.isSw(c) ? '<b class="swtag" title="SW 졸업요건 인정 과목">SW</b>' : ''}${K.isEng(c) ? '<b class="swtag engtag" title="영어강의로 들은 과목">영어</b>' : ''}</span>
       <button class="ipbtn" type="button" data-ip="${esc(c.t)}" aria-pressed="${!!c.ip}" title="이번 학기 수강 중이면 눌러서 표시">${c.ip ? '수강 중' : '이수'}</button>
       <button class="rm" data-rm="${esc(c.t)}" aria-label="${esc(c.t)} 빼기">×</button></li>`).join('');
   }
@@ -138,6 +139,7 @@
       if (r.choose && r.choose.done < r.choose.pick) detail += `<div class="sub">아래 중 ${r.choose.pick - r.choose.done}과목 더 선택: ${r.choose.options.map(esc).join(', ')}</div>`;
       if (r.groups && r.groups.length) detail += r.groups.map((gr) => `<div class="sub">${esc(gr.name)} ${gr.have}/${gr.need}학점 ${gr.have >= gr.need ? '충족' : `(−${gr.need - gr.have})`}${gr.unsure ? `, 그중 ${gr.unsure}학점은 세칙 목록 밖 과목이라 확인 필요` : ''}</div>`).join('');
       if (r.areaNote) detail += `<div class="sub">배분이수 영역 ${esc(r.areaNote)}</div>`;
+      if (r.engCourses && r.engCourses.length) detail += `<div class="detail">${r.engCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.swCourses && r.swCourses.length) detail += `<div class="detail">${r.swCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.note) detail += `<div class="sub">${esc(r.note)}</div>`;
       if (r.subs && r.subs.length && !r.ok) detail += `<div class="sub">대체 가능: ${r.subs.map(esc).join(' / ')}</div>`;
@@ -374,12 +376,13 @@ ${planTxt || '- 남은 학기 없음'}
         ...(withCur ? [['이번 학기 포함 학점', o.totalWithCurrent, c.all]] : []),
         ['필수교과', o.libReq && o.libReq[0], c.libReq], ['배분이수', o.libDist && o.libDist[0], c.libDist], ['자유이수', o.libFree && o.libFree[0], c.libFree],
         ['전공기초', o.basic && o.basic[0], c.basic], ['전공필수', o.required && o.required[0], c.required], ['전공선택', o.elective && o.elective[0], c.elective],
+        ['영어강의', o.engHave, res.courses.filter((x) => K.isEng(x)).length, '과목'],
       ].filter((x) => x[1] != null);
       const same = items.filter((x) => x[1] === x[2]).length;
       return `<section class="section"><h3>인포21 진단표와 맞춰 보기</h3>
       <p class="lead">진단표의 공식 집계와 이 사정표의 계산을 나란히 놓았어요.${withCur ? ' 진단표의 영역별 학점은 이번 학기 수강 중 과목을 포함한 값이라, 같은 기준으로 비교했어요.' : ''} ${same === items.length ? `${items.length}개 항목이 모두 같아요.` : `${items.length}개 중 ${items.length - same}개가 달라요. 다른 항목은 학과 사무실에 확인해 보세요.`}</p>
       <table class="sim"><thead><tr><th>항목</th><th>인포21 진단표</th><th>졸업사정표 계산</th><th>결과</th></tr></thead><tbody>
-      ${items.map(([n, a, b]) => `<tr><td>${esc(n)}</td><td>${a}학점</td><td>${b}학점</td><td>${a === b ? '일치' : `<span class="short">${b - a > 0 ? '+' : ''}${b - a}</span>`}</td></tr>`).join('')}
+      ${items.map(([n, a, b, u = '학점']) => `<tr><td>${esc(n)}</td><td>${a}${u}</td><td>${b}${u}</td><td>${a === b ? '일치' : `<span class="short">${b - a > 0 ? '+' : ''}${b - a}</span>`}</td></tr>`).join('')}
       </tbody></table></section>`;
     })() : '';
 
@@ -494,7 +497,7 @@ ${planTxt || '- 남은 학기 없음'}
         if (r.year && r.year >= 2019 && r.year <= 2026) state.year = r.year; else if (r.year) notes.push(`졸업기준년도 ${r.year}는 이 사이트 범위(2019~2026) 밖이에요.`);
         if (r.dept) state.dept = r.dept; else notes.push('학과를 찾지 못했어요. 위에서 직접 골라 주세요.');
         state.courses = r.courses;
-        state.sw = 0; // 진단표의 공식 SW 학점은 state.official.sw로 들어가 과목 목록과 함께 계산된다
+        state.sw = 0; state.engManual = 0; // 진단표의 공식 SW 학점·영어강의 수는 state.official로 들어가 과목 목록과 함께 계산된다
         state.liberal = { dist: 0, free: 0, general: 0, areas: state.liberal.areas, reqChecked: [], engExempt: false };
         state.official = Object.keys(r.official).length ? r.official : null;
         promptEdit = null; state.withdraw = [];
@@ -622,6 +625,9 @@ ${planTxt || '- 남은 학기 없음'}
     const swEl = $('#sw');
     swEl.addEventListener('input', () => { if (Number(swEl.value) > 30) swEl.value = 30; state.sw = clampInt(swEl.value, 30); later(); });
     swEl.addEventListener('change', () => { swEl.value = state.sw || ''; });
+    const engEl = $('#engx');
+    engEl.addEventListener('input', () => { if (Number(engEl.value) > 10) engEl.value = 10; state.engManual = clampInt(engEl.value, 10); later(); });
+    engEl.addEventListener('change', () => { engEl.value = state.engManual || ''; });
     $('#exam').addEventListener('change', (e) => { state.examDone = e.target.checked; renderResult(); });
     $('#thesis').addEventListener('change', (e) => { state.thesisDone = e.target.checked; renderResult(); });
     $('#engExempt').addEventListener('change', (e) => { state.liberal.engExempt = e.target.checked; renderResult(); });
@@ -631,7 +637,7 @@ ${planTxt || '- 남은 학기 없음'}
       if (b) $('#deptmsg').textContent = '';
       if (!b) return;
       const s = SAMPLES[b.dataset.sample];
-      Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses })));
+      Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, engManual: s.engManual || 0, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses })));
       state.liberal = { reqChecked: [], engExempt: false, ...JSON.parse(JSON.stringify(s.liberal)) };
       state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; promptEdit = null; state.withdraw = [];
       render();
