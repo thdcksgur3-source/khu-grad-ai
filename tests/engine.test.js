@@ -111,5 +111,32 @@ for (const d of K.GYEYEOL.depts) {
   check(!r.error && r.rows.find((x) => x.label === '전공기초').have === 6, `계열 학생 수강 기록을 ${K.deptLabel(d, 2026)} 세칙으로 계산 (전공기초 6학점)`);
 }
 
+console.log('[7] 계획표: 배분 영역·졸업 절차·과목군 상한');
+const tr = (rows) => K.parseTranscript(rows.map((r) => r.join('\t')).join('\n')).courses;
+const bdCourses = tr([
+  [2024, 1, '전공기초', 'MGMT1001', '경영통계학', 3, 'A0'], [2024, 1, '전공기초', 'ACCT1001', '회계원리', 3, 'A0'],
+  [2024, 2, '전공기초', 'MGMT1007', '경영학원론', 3, 'A0'], [2024, 2, '전공기초', 'MGMT1003', '책임경영', 3, 'A0'],
+  [2024, 1, '전공필수', 'BDAS1001', '빅데이터수학', 3, 'A0'], [2024, 2, '전공필수', 'BDAS1002', '빅데이터프로그래밍1', 3, 'A0'],
+  [2025, 1, '배분이수', 'GED1106', '생명,영원한블루오션', 3, 'A0'], [2025, 2, '배분이수', 'GED1649', '호모무지쿠스:음악으로경', 3, 'A0'],
+]);
+const bdIn = { year: 2024, dept: '빅데이터응용학과', track: 'single', courses: bdCourses, liberal: {}, now: NOW };
+const bp = K.planGraduation(bdIn, { maxCr: 18 });
+check(bp.done, '성적표 붙여넣기(배분 영역 정보 없음)여도 계획이 끝까지 완성됨');
+check(bp.semesters.every((s) => s.credits > 0), `0학점 빈 학기가 없음 (${bp.semesters.map((s) => s.credits).join('/')})`);
+const ms = bp.semesters.flatMap((s, i) => s.items.filter((x) => x.milestone).map((x) => ({ t: x.t, i, reg: s.reg })));
+const pj = ms.find((x) => /졸업프로젝트/.test(x.t)); const th = ms.find((x) => /졸업논문/.test(x.t));
+check(pj && pj.reg >= 7, `빅데이터: 졸업프로젝트 신청을 7학기 이상 등록한 학기에 표시 (실제 ${pj && pj.reg}학기)`);
+check(th && th.i === bp.semesters.length - 1, '빅데이터: 졸업논문을 마지막 계획 학기에 표시');
+check(K.regSoFar({ year: 2024 }, NOW).n === 6 && K.regSoFar({ year: 2024, official: { regCount: 5 } }, NOW).n === 5, '등록 학기 수: 진단표 값 우선, 없으면 입학년도로 추정');
+const mp = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single', courses: [], liberal: {}, now: NOW }, { maxCr: 18 });
+const mms = mp.semesters.flatMap((s) => s.items.filter((x) => x.milestone).map((x) => x.t));
+check(mms.length === 1 && /졸업논문\(경영학\)/.test(mms[0]), `경영학과: 졸업논문만 표시하고 졸업프로젝트는 없음 (${mms.join(', ')})`);
+check(mp.semesters.every((s) => s.credits === s.items.reduce((a, x) => a + x.cr, 0)), '졸업 절차 항목은 학기 학점에 더해지지 않음');
+const capRes = K.audit({ ...bdIn, courses: [...bdCourses, ...['소비자행동론', '마케팅조사론', '디지털마케팅', '투자론'].map((t) => ({ t, cr: 3 }))] });
+const cap = capRes.rows.find((r) => r.id === 'm-elec').cap;
+check(cap && cap.max === 9 && cap.have === 12 && cap.over === 3, `빅데이터: 경영과목군 12학점 중 9학점만 인정, 3학점 초과 표시 (${JSON.stringify(cap)})`);
+const exRow = capRes.rows.find((r) => r.id === 'exam');
+check(exRow.subs.length >= 5 && /3월/.test(exRow.schedule || ''), '빅데이터: 졸업프로젝트 대체 요건과 진행 일정 표시');
+
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
 process.exit(fail ? 1 : 0);
