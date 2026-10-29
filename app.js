@@ -46,7 +46,7 @@
   const state = {
     year: 2024, dept: '경영학과', track: 'single', sw: 0, engManual: 0, examDone: false, thesisDone: false,
     courses: [], liberal: { dist: 0, free: 0, general: 0, areas: [], reqChecked: [], engExempt: false },
-    interests: [], tab: 'paste', sampleName: null, official: null, maxCr: 18, view: 'audit', withdraw: [],
+    interests: [], tab: 'paste', sampleName: null, official: null, gyeyeol: null, maxCr: 18, view: 'audit', withdraw: [],
   };
   let lastCount = -1;
   // ChatKHU 질문: 사용자가 고친 내용은 화면이 다시 그려져도 유지한다 (다른 학생을 불러오면 초기화)
@@ -54,14 +54,48 @@
   let promptBase = '';
   const CHATKHU_URL = 'https://chat.khu.ac.kr/'; // ChatKHU 주소는 여기 한 곳에서만 바꾸면 된다
 
+  // 경영회계계열(2026~) 학생은 학과 대신 계열과 '진입 기준 학과'를 함께 보여 준다
+  const whoDept = (res) => (state.gyeyeol ? `${state.gyeyeol} (${res.deptLabel} 진입 기준)` : res.deptLabel);
+
+  /* ---------- 경영회계계열: 진입 학과별 비교 ---------- */
+  function gyeyeolSection(input, res) {
+    const G = K.GYEYEOL;
+    const pick = (r, label) => r.rows.find((x) => x.label === label) || { need: 0, have: 0 };
+    const cols = G.depts.map((d) => {
+      const r = d === res.dept ? res : K.audit({ ...input, dept: d });
+      const g = K.groupFor(d, input.year);
+      return { d, r, g, label: K.deptLabel(d, input.year) };
+    }).filter((c) => !c.r.error);
+    if (cols.length < 2) return '';
+    const [a, b] = cols;
+    const only = (x, y) => x.g.required_courses.filter((t) => !y.g.required_courses.includes(t) && !/^졸업논문/.test(t));
+    const taken = new Set(state.courses.map((c) => K.norm(c.t)));
+    const left = (row) => Math.max(0, (row.need || 0) - (row.have || 0));
+    const line = (name, label) => `<tr><td>${name}</td>${cols.map((c) => { const row = pick(c.r, label); return `<td>${row.have}/${row.need}학점${left(row) ? ` <span class="short">${left(row)} 남음</span>` : ' <span class="ok">충족</span>'}</td>`; }).join('')}</tr>`;
+    const reqOnly = (x, y) => { const l = only(x, y); return l.length ? l.map((t) => `${esc(t)}${taken.has(K.norm(t)) ? ' ✓' : ''}`).join(', ') : '없음'; };
+    const pre = G.common.map((t) => `${esc(t)} ${taken.has(K.norm(t)) ? '<span class="ok">이수</span>' : '<span class="short">아직</span>'}`).join(' · ');
+    return `<section class="section gy">
+      <h3>${esc(state.gyeyeol)} · 진입 학과별로 비교해 보기</h3>
+      <p class="lead">${esc(state.gyeyeol)}로 입학하면 2학년부터 경영학과와 회계학과 중 하나를 자유롭게 골라요. 같은 수강 기록을 두 학과 세칙에 각각 대 봤어요. 지금 사정표는 <b>${esc(res.deptLabel)}</b> 기준이에요.</p>
+      <table class="sim gy-cmp"><thead><tr><th>요건</th>${cols.map((c) => `<th>${esc(c.label)}${c.d === res.dept ? ' <span class="meta">(지금 보기)</span>' : ''}</th>`).join('')}</tr></thead><tbody>
+        ${line('전공기초', '전공기초')}${line('전공필수', '전공필수')}${line('전공선택', '전공선택')}${line('전공 합계', '전공 합계')}
+        <tr><td>이 학과에만 있는 전공필수</td><td>${reqOnly(a, b)}</td><td>${reqOnly(b, a)}</td></tr>
+        <tr><td>남은 요건</td>${cols.map((c) => `<td>${c.r.rows.filter((x) => !x.ok && !x.flag).length}개</td>`).join('')}</tr>
+        <tr><td></td>${cols.map((c) => `<td>${c.d === res.dept ? '<span class="meta">보는 중</span>' : `<button type="button" class="btn ghost small" data-gydept="${esc(c.d)}">${esc(c.label)} 기준으로 보기</button>`}</td>`).join('')}</tr>
+      </tbody></table>
+      <p class="msg">두 학과의 전공기초는 같아서, 1학년 때 듣는 전공기초는 어느 학과로 가도 그대로 인정돼요: ${pre}. 전공 배정 기준과 시기는 경영대학 공지를 확인하세요.</p>
+    </section>`;
+  }
+
   /* ---------- 입력 렌더 ---------- */
   function renderInputs() {
     $('#year').value = String(state.year);
     document.querySelectorAll('#dept button').forEach((b) => {
       const d = b.dataset.v;
       b.setAttribute('aria-pressed', String(d === state.dept));
-      b.disabled = d === '빅데이터응용학과' && state.year < 2022;
-      b.title = b.disabled ? '빅데이터응용학과는 22학번부터 있어요' : '';
+      const gyNo = !!state.gyeyeol && d === '빅데이터응용학과';
+      b.disabled = (d === '빅데이터응용학과' && state.year < 2022) || gyNo;
+      b.title = gyNo ? '경영회계계열은 경영학과·회계학과 중에서 골라요' : b.disabled ? '빅데이터응용학과는 22학번부터 있어요' : '';
       if (d === '회계·세무학과') b.textContent = state.year >= 2026 ? '회계학과' : '회계·세무학과';
     });
     document.querySelectorAll('#track button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === state.track)));
@@ -182,7 +216,7 @@
         <table class="sim wd"><thead><tr><th><span class="sr-only">선택</span></th><th>과목</th><th>학점</th><th>이수 학기</th><th>구분</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
     }).join('');
     out.innerHTML = `
-    <div class="sheet-head"><div><h2>학점포기 시뮬레이션</h2><p class="who">${esc(res.deptLabel)} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'} · 포기해도 졸업할 수 있는지 미리 확인해요</p></div></div>
+    <div class="sheet-head"><div><h2>학점포기 시뮬레이션</h2><p class="who">${esc(whoDept(res))} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'} · 포기해도 졸업할 수 있는지 미리 확인해요</p></div></div>
     <ul class="wd-notice">
       <li><b>2026학년도 2학기 신청 기간(${esc(K.WITHDRAW.period)})은 끝났어요.</b> 다음 신청 기간은 학교 공지를 확인하세요. 신청은 인포21 → 수업/성적 → 성적 → 학점포기신청에서 해요.</li>
       ${elig}
@@ -271,7 +305,7 @@
     const unmet = res.unmet.map((r) => `- ${r.label}: ${r.flag ? '확인 필요' : `${r.have}/${r.need}${r.unit === '과목' ? '과목' : '학점'}`}${r.missing && r.missing.length ? ` (미이수: ${r.missing.join(', ')})` : ''}`).join('\n') || '- 없음';
     const now = res.courses.filter((c) => c.ip).map((c) => c.t).join(', ');
     const planTxt = (plan.semesters || []).map((s) => `- ${termName(s)}: ${s.items.map((i) => i.t).join(', ')}`).join('\n');
-    return `나는 경희대학교 ${res.deptLabel} ${res.year}학번이고 ${res.track === 'multi' ? '다전공' : '단일전공'} 과정이야.
+    return `나는 경희대학교 ${state.gyeyeol ? `${state.gyeyeol}로 입학한 ${res.year}학번이고(${res.deptLabel} 진입 기준) ` : `${res.deptLabel} ${res.year}학번이고 `} ${res.track === 'multi' ? '다전공' : '단일전공'} 과정이야.
 이번 학기에 듣는 과목: ${now || '없음'}
 '경영대 졸업사정표'로 이번 학기를 마친 뒤 기준으로 점검한 결과는 아래와 같아.
 
@@ -348,7 +382,7 @@ ${planTxt || '- 남은 학기 없음'}
     if (state.view === 'withdraw') { renderCourseList(res); renderLibChecks(res); renderWithdraw(input, res); return; }
     if (!state.courses.length && !state.official) {
       renderCourseList(res); renderLibChecks(res); lastCount = -1;
-      out.innerHTML = `<div class="sheet-head"><div><h2>졸업사정표</h2><p class="who">${esc(res.deptLabel)} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}</p></div></div>
+      out.innerHTML = `<div class="sheet-head"><div><h2>졸업사정표</h2><p class="who">${esc(whoDept(res))} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}</p></div></div>
       <div class="road" style="margin-top:22px"><p class="headline">졸업진단표를 올리면, 이 자리에 졸업까지 남은 학점과 다음 학기에 들을 과목이 나와요.</p>
       <ol style="margin:12px 0 0;padding-left:20px;line-height:1.9"><li>인포21 → 졸업사정 조회에서 <b>졸업진단표를 PDF로 저장</b>해요.</li><li>왼쪽 <b>졸업진단표 PDF 올리기</b>를 눌러 파일을 골라요. 학번·학과·이번 학기 과목까지 자동으로 들어가요.</li><li>진단표가 없으면 성적 표를 붙여넣거나 과목을 검색해서 넣어도 돼요.</li></ol>
       <div class="btnrow" style="margin-top:14px"><span class="msg">먼저 둘러보려면:</span><button class="btn ghost small" type="button" data-sample2="acct">회계·세무 21학번</button><button class="btn ghost small" type="button" data-sample2="mgmt">경영 24학번</button><button class="btn ghost small" type="button" data-sample2="bdas">빅데이터 22학번</button></div></div>
@@ -386,11 +420,13 @@ ${planTxt || '- 남은 학기 없음'}
       </tbody></table></section>`;
     })() : '';
 
+    const gySec = state.gyeyeol ? gyeyeolSection(input, res) : '';
+
     const th = `<thead><tr><th>요건</th><th style="text-align:right">기준</th><th style="text-align:right">${hasIp ? '이번 학기 후' : '취득'}</th><th style="text-align:center">판정</th></tr></thead>`;
 
     out.innerHTML = `
     <div class="sheet-head">
-      <div><h2>졸업사정표</h2><p class="who">${esc(res.deptLabel)} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}${state.sampleName ? ` (예시 학생, ${esc(state.sampleName)})` : ''}${state.official ? ' (인포21 진단표 불러옴)' : ''}</p></div>
+      <div><h2>졸업사정표</h2><p class="who">${esc(whoDept(res))} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}${state.sampleName ? ` (예시 학생, ${esc(state.sampleName)})` : ''}${state.official ? ' (인포21 진단표 불러옴)' : ''}</p></div>
       <div class="date">${dateStr}<br>${res.year}학년도 시행세칙 적용</div>
     </div>
 
@@ -413,6 +449,8 @@ ${planTxt || '- 남은 학기 없음'}
         <div class="stamp ${allOk ? '' : 'pending'}">${allOk ? '학점 요건<br>충족' : `남은 요건<br>${blockingN}개`}</div>
       </div>
     </div>
+
+    ${gySec}
 
     ${roadmap(res, plan)}
 
@@ -483,8 +521,16 @@ ${planTxt || '- 남은 학기 없음'}
 
   function bind() {
     $('#year').innerHTML = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((y) => `<option value="${y}">${y}학번 (${String(y).slice(2)}학번)</option>`).join('');
-    $('#year').addEventListener('change', (e) => { state.year = Number(e.target.value); state.official = null; const moved = state.year < 2022 && state.dept === '빅데이터응용학과'; if (moved) state.dept = '경영학과'; $('#deptmsg').textContent = moved ? '빅데이터응용학과는 22학번부터 있어서 경영학과로 바꿨어요.' : ''; state.sampleName = null; render(); });
-    $('#dept').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) { $('#deptmsg').textContent = ''; state.dept = b.dataset.v; state.sampleName = null; state.official = null; render(); } });
+    $('#year').addEventListener('change', (e) => { state.year = Number(e.target.value); state.official = null; state.gyeyeol = null; const moved = state.year < 2022 && state.dept === '빅데이터응용학과'; if (moved) state.dept = '경영학과'; $('#deptmsg').textContent = moved ? '빅데이터응용학과는 22학번부터 있어서 경영학과로 바꿨어요.' : ''; state.sampleName = null; render(); });
+    $('#dept').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) { setDept(b.dataset.v); } });
+    // 계열 학생은 진입 학과만 바꿔 보는 것이라 진단표 집계(state.official)를 유지한다
+    function setDept(v) {
+      state.dept = v; state.sampleName = null;
+      if (state.gyeyeol) $('#deptmsg').textContent = `${state.gyeyeol}: ${K.deptLabel(v, state.year)}로 진입한다고 보고 계산해요.`;
+      else { $('#deptmsg').textContent = ''; state.official = null; }
+      render();
+    }
+    $('#sheet').addEventListener('click', (e) => { const b = e.target.closest('button[data-gydept]'); if (b) { setDept(b.dataset.gydept); $('#sheet').scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
     $('#track').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { state.track = b.dataset.v; render(); } });
     document.querySelector('.tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { state.tab = b.dataset.tab; renderInputs(); } });
 
@@ -495,7 +541,12 @@ ${planTxt || '- 남은 학기 없음'}
         if (!r.courses.length) { msg.className = 'msg warn'; msg.textContent = '진단표는 찾았는데 과목 목록을 읽지 못했어요. 진단표 전체를 다시 복사하거나 PDF로 올려 주세요.'; return; }
         const notes = [];
         if (r.year && r.year >= 2019 && r.year <= 2026) state.year = r.year; else if (r.year) notes.push(`졸업기준년도 ${r.year}는 이 사이트 범위(2019~2026) 밖이에요.`);
-        if (r.dept) state.dept = r.dept; else notes.push('학과를 찾지 못했어요. 위에서 직접 골라 주세요.');
+        const prevGy = state.gyeyeol; // 같은 계열 진단표를 다시 올리면 학생이 골라 둔 진입 학과를 유지한다
+        state.gyeyeol = r.gyeyeol || null;
+        if (r.gyeyeol) {
+          state.dept = r.dept || (prevGy && state.dept === '회계·세무학과' ? '회계·세무학과' : '경영학과');
+          notes.push(`${r.gyeyeol}로 입학한 학생이에요. 2학년부터 경영학과·회계학과 중 고르니, 우선 ${K.deptLabel(state.dept, state.year)} 기준으로 계산했어요. 위 학과 버튼이나 사정표의 비교표에서 바꿔 볼 수 있어요.`);
+        } else if (r.dept) state.dept = r.dept; else notes.push('학과를 찾지 못했어요. 위에서 직접 골라 주세요.');
         state.courses = r.courses;
         state.sw = 0; state.engManual = 0; // 진단표의 공식 SW 학점·영어강의 수는 state.official로 들어가 과목 목록과 함께 계산된다
         state.liberal = { dist: 0, free: 0, general: 0, areas: state.liberal.areas, reqChecked: [], engExempt: false };
@@ -505,7 +556,7 @@ ${planTxt || '- 남은 학기 없음'}
         state.sampleName = null;
         const ipN = r.courses.filter((c) => c.ip).length;
         if (window.matchMedia('(max-width: 960px)').matches) setTimeout(() => $('#viewtabs').scrollIntoView({ behavior: 'smooth' }), 50);
-        msg.textContent = `${source} 졸업진단표를 읽었어요. ${K.deptLabel(state.dept, state.year)} ${state.year} 기준, ${r.courses.length - ipN}과목을 넣었어요${ipN ? ` (이번 학기 수강 중 ${ipN}과목 포함)` : ''}. 학번·학과도 진단표에 맞췄어요. ${ipN ? '' : '이번 학기에 듣는 과목은 아래 칸에서 추가하세요.'} ${notes.join(' ')}`;
+        msg.textContent = `${source} 졸업진단표를 읽었어요. ${state.gyeyeol ? `${state.gyeyeol}(${K.deptLabel(state.dept, state.year)} 진입 기준)` : K.deptLabel(state.dept, state.year)} ${state.year} 기준, ${r.courses.length - ipN}과목을 넣었어요${ipN ? ` (이번 학기 수강 중 ${ipN}과목 포함)` : ''}. 학번·학과도 진단표에 맞췄어요. ${ipN ? '' : '이번 학기에 듣는 과목은 아래 칸에서 추가하세요.'} ${notes.join(' ')}`;
       } else {
         addCourses(r.courses);
         msg.textContent = r.courses.length
@@ -603,7 +654,7 @@ ${planTxt || '- 남은 학기 없음'}
       render();
     });
     $('#maxcr').addEventListener('change', (e) => { state.maxCr = Number(e.target.value); renderResult(); });
-    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; promptEdit = null; state.withdraw = []; render(); });
+    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; state.gyeyeol = null; promptEdit = null; state.withdraw = []; render(); });
 
     $('#libreq').addEventListener('change', (e) => {
       const t = e.target.dataset.req; if (!t) return;
@@ -639,7 +690,7 @@ ${planTxt || '- 남은 학기 없음'}
       const s = SAMPLES[b.dataset.sample];
       Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, engManual: s.engManual || 0, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses })));
       state.liberal = { reqChecked: [], engExempt: false, ...JSON.parse(JSON.stringify(s.liberal)) };
-      state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; promptEdit = null; state.withdraw = [];
+      state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; state.gyeyeol = null; promptEdit = null; state.withdraw = [];
       render();
       if (window.matchMedia('(max-width: 960px)').matches) $('#viewtabs').scrollIntoView({ behavior: 'smooth' });
     });

@@ -407,6 +407,7 @@
   const MAJOR_PREFIX = /^(MGMT|ACCT|BDAS|ECON|EDU)/;
   const DIAG_ROW = /(?:(?:^|\s)(\d{2})(?:\s+\d{2})?\s+)?([A-Z]{2,6}\s?\d{3,5}[A-Z]?)\s+(.+?)\s*(\d(?:\.\d)?)\s+(20\d{2})\s*\/\s*([12])/g;
   const CUR_ROW = /(?:^|\s)(\d{2})\s+([A-Z]{2,6}\d{3,5}[A-Z]?)\s+(.+?)\s*(\d(?:\.\d)?)\s*$/;
+  const GYEYEOL = { name: '경영회계계열', depts: ['경영학과', '회계·세무학과'], common: ['경영통계학', '경영학원론', '책임경영', '회계원리'] }; // 두 학과 공통 전공기초 (2026 세칙)
   const DEPT_NAMES = ['빅데이터응용학과', '회계·세무학과', '회계ㆍ세무학과', '회계세무학과', '회계학과', '경영학과'];
   const isDiagnosis = (text) => /졸\s*업\s*진\s*단\s*표|졸업기준학점/.test(text || '');
   const cleanTitle = (t) => t.replace(/^[es#@*$%G]+(?=[가-힣A-Z0-9])/, '').replace(/\s+/g, ' ').trim();
@@ -421,6 +422,13 @@
     const dm = head.match(/학\s*과\s+(\S+학과)/);
     const cand = dm ? dm[1] : (DEPT_NAMES.find((d) => head.includes(d)) || null);
     if (cand) dept = /빅데이터/.test(cand) ? '빅데이터응용학과' : /회계/.test(cand) ? '회계·세무학과' : /경영/.test(cand) ? '경영학과' : null;
+    // 2026학번부터 경영학과·회계학과는 '경영회계계열'로 통합 모집한다. 학과 칸이 계열이면 학과를 정하지 않고 계열로 알린다.
+    const gm = head.match(/학\s*과\s+([가-힣]+계\s*열)/) || head.match(/(경\s*영\s*회\s*계\s*계\s*열)/);
+    const gyeyeol = gm ? gm[1].replace(/\s+/g, '') : null;
+    if (gyeyeol) {
+      const pm = head.match(/(?:주\s*전\s*공|심화전공|단일전공|진입\s*학과|배정\s*학과)\s+(경영학과|회계학과|회계·세무학과)/);
+      dept = pm ? (/회계/.test(pm[1]) ? '회계·세무학과' : '경영학과') : null;
+    }
     const ym = text.match(/졸업기준학점\s*\(\s*년도\s*\)\s*(20\d{2})/) || text.match(/(?:심화전공|단일전공|주전공)\s+\d\s+\S+\s+(20\d{2})/);
     const year = ym ? Number(ym[1]) : null;
 
@@ -505,7 +513,7 @@
       if (pass === '통과' || pass === '미통과') official.engPass = pass === '통과';
     }
     if (st) official.status = st[1] + st[2];
-    return { kind: 'diagnosis', year, dept, courses: merged, official, sw, skipped: [] };
+    return { kind: 'diagnosis', year, dept, gyeyeol, courses: merged, official, sw, skipped: [] };
   }
 
 
@@ -736,5 +744,5 @@
     return pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k)).slice(0, limit);
   }
 
-  root.KHU = { isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
+  root.KHU = { GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
 })(typeof window !== 'undefined' ? window : globalThis);

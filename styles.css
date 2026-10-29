@@ -302,3 +302,12 @@ table.wd td:nth-child(5) { white-space: nowrap !important; }
 }
 @media print { .ck-dock { display: none; } }
 .swtag.engtag { background: #2f6b4f; }
+
+/* 경영회계계열 진입 학과 비교 */
+.section.gy { border-left: 3px solid var(--crimson); padding-left: 12px; }
+.section.gy .ok { color: #1f7a4d; font-weight: 600; }
+.section.gy .meta { font-size: 12px; color: var(--muted); font-weight: 400; }
+.gy-cmp td, .gy-cmp th { vertical-align: top; }
+.gy-cmp td:first-child { white-space: nowrap; }
+@media (max-width: 480px) { .gy-cmp td:first-child { white-space: normal; } .gy-cmp td, .gy-cmp th { font-size: 13px; } }
+.sim.gy-cmp td:nth-child(2), .sim.gy-cmp td:nth-child(3) { white-space: normal; }
