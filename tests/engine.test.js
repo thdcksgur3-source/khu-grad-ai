@@ -143,5 +143,8 @@ check(cap && cap.max === 9 && cap.have === 12 && cap.over === 3, `빅데이터: 
 const exRow = capRes.rows.find((r) => r.id === 'exam');
 check(exRow.subs.length >= 5 && /3월/.test(exRow.schedule || ''), '빅데이터: 졸업프로젝트 대체 요건과 진행 일정 표시');
 
+const dbl = K.audit({ year: 2023, dept: '경영학과', track: 'single', courses: [], liberal: {}, now: NOW }).doubles;
+const dA = dbl.find((d) => /회계/.test(d.dept)), dB = dbl.find((d) => /빅데이터/.test(d.dept));
+check(dA && /졸업시험/.test(dA.grad2.exam) && /졸업논문\(회계학\)/.test(dA.grad2.thesis) && dB && /졸업프로젝트/.test(dB.grad2.exam), '다전공: 2전공 학과의 졸업시험·졸업프로젝트와 졸업논문을 따로 안내');
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
 process.exit(fail ? 1 : 0);
