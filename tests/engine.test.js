@@ -76,5 +76,17 @@ check(swPlanned.length >= 2 && swPlanned.every((i) => K.isSw(i)), `신입생 계
 const pB = K.planGraduation({ year: 2022, dept: '빅데이터응용학과', track: 'single', courses: [], liberal: {}, now: NOW }, { maxCr: 18 });
 check(pB.semesters.flatMap((s) => s.items).some((i) => i.no === 'BDAS1004' && /SW/.test(i.why)), '빅데이터 학생 계획: 빅데이터프로그래밍2가 SW 요건도 채움으로 표시');
 
+// 5) 영어강좌 의무이수 (3과목, 진단표 e 표시)
+console.log('[5] 영어강의 3과목');
+const engOf = (courses, extra = {}) => K.audit({ year: 2022, dept: '경영학과', track: 'single', courses, liberal: {}, now: NOW, ...extra }).rows.find((x) => x.id === 'eng');
+const e3 = [{ t: '마케팅원론', eng: 'mark' }, { t: '조직행동론', eng: 'mark' }, { t: '재무관리', eng: 'mark', ip: true }];
+check(engOf(e3).have === 3 && engOf(e3).ok, '진단표 e 표시 3과목(수강 중 포함) → 충족');
+check(engOf(e3.slice(0, 2)).short === 1, 'e 표시 2과목 → 1과목 부족');
+check(engOf(e3.slice(0, 2), { official: { engHave: 3 } }).have === 3, '진단표 공식 영어강의 수와 같은 과목을 두 번 세지 않음');
+check(engOf([], { engManual: 2 }).have === 2, '직접 입력한 영어강의 과목 수 반영');
+const pe = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single', courses: [], liberal: {}, now: NOW }, { maxCr: 18 });
+const engHints = pe.semesters.flatMap((s) => s.items).filter((i) => i.eng);
+check(pe.done && engHints.length === 3 && engHints.every((i) => /영어강의/.test(i.why)), `신입생 계획: 전공과목 3개에 '영어강의 분반으로' 표시 (실제 ${engHints.length}개)`);
+
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
 process.exit(fail ? 1 : 0);
