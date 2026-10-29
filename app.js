@@ -207,7 +207,7 @@
     const sorted = [...items].sort((a, b) => (b.ip ? 1 : 0) - (a.ip ? 1 : 0));
     ul.innerHTML = sorted.map((c) => `<li>
       <div>${esc(c.t)} <span class="meta">${esc(c.cr)}학점${c.grp && c.kind === '전공선택' ? `, ${esc(c.grp)}과목군${c.unsure ? ' (세칙 목록 밖, 확인 필요)' : ''}` : ''}</span></div>
-      <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}${K.isSw(c) ? '<b class="swtag" title="SW 졸업요건 인정 과목">SW</b>' : ''}${K.isEng(c) ? '<b class="swtag engtag" title="영어강의로 들은 과목">영어</b>' : ''}</span>
+      <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}${K.isSw(c) ? '<b class="swtag" title="SW 졸업요건 인정 과목">SW</b>' : ''}${K.isEng(c) ? (K.engCounts(c) ? '<b class="swtag engtag" title="전공 영어강의: 영어강좌 의무이수에 들어가요">영어</b>' : '<b class="swtag engtag off" title="교양·일반선택 영어강의라 영어강좌 의무이수(전공 3과목)에는 들어가지 않아요">영어(교양)</b>') : ''}</span>
       <button class="ipbtn" type="button" data-ip="${esc(c.t)}" aria-pressed="${!!c.ip}" title="이번 학기 수강 중이면 눌러서 표시">${c.ip ? '수강 중' : '이수'}</button>
       <button class="rm" data-rm="${esc(c.t)}" aria-label="${esc(c.t)} 빼기">×</button></li>`).join('');
   }
@@ -436,8 +436,10 @@ ${planTxt || '- 남은 학기 없음'}
     // 남은 학기 기준 안내: 단정하지 않고, 입력이 빠졌을 가능성과 줄이는 방법을 함께 알려 준다
     const lastReg = n ? plan.semesters[n - 1].reg : null;
     const hints = [];
-    if (!plan.done || (lastReg && lastReg > 8)) {
-      hints.push(lastReg && lastReg > 8 && plan.done
+    // 등록 학기 수를 입학년도로만 추정한 경우(휴학·군휴학을 모름)에는 8학기 초과 경고를 띄우지 않는다
+    const overReg = lastReg && lastReg > 8 && plan.semesters.regKnown;
+    if (!plan.done || overReg) {
+      hints.push(overReg && plan.done
         ? `이 계획대로면 ${lastReg}학기째에 졸업해서 정규 8학기를 넘겨요 (${plan.semesters.regKnown ? '진단표 등록횟수' : '휴학 없이 다녔다고 가정한 등록 학기'} 기준).`
         : '남은 학기 기준으로 계산한 결과예요.');
       if (ct && !ipCr) hints.push('이번 학기에 듣는 과목을 넣으면 더 정확해져요.');
@@ -504,7 +506,7 @@ ${planTxt || '- 남은 학기 없음'}
         ...(withCur ? [['이번 학기 포함 학점', o.totalWithCurrent, c.all]] : []),
         ['필수교과', o.libReq && o.libReq[0], c.libReq], ['배분이수', o.libDist && o.libDist[0], c.libDist], ['자유이수', o.libFree && o.libFree[0], c.libFree],
         ['전공기초', o.basic && o.basic[0], c.basic], ['전공필수', o.required && o.required[0], c.required], ['전공선택', o.elective && o.elective[0], c.elective],
-        ['영어강의', o.engHave, res.courses.filter((x) => K.isEng(x)).length, '과목'],
+        ['영어강의(전공)', o.engHave, res.courses.filter((x) => K.engCounts(x)).length, '과목'],
       ].filter((x) => x[1] != null);
       const same = items.filter((x) => x[1] === x[2]).length;
       return `<section class="section"><h3>인포21 진단표와 맞춰 보기</h3>

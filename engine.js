@@ -32,6 +32,10 @@
   const ENG_DEFAULT = 3;
   const isEng = (c) => !!c.eng;
   const MAJOR_KIND = /^전공/;
+  // 영어강좌 의무이수제는 전공과목(전공기초·전공필수·전공선택) 영어강좌를 센다 (학사지원팀 안내).
+  // 인포21 집계와 같게, 교양 과목(대학영어 등 교양필수·배분이수·자유이수, GE 학수번호)의 영어강의만 빼고 나머지 전공 개설 과목은 센다.
+  const LIB_CAT = /^(교양|배분이수|자유이수)/;
+  const engCounts = (c) => isEng(c) && !(LIB_CAT.test(c.cat || '') || LIB_CAT.test(c.kind || '') || /^GE/.test(c.no || '') || isLibReq(c.t));
   function swStatus(courses, input, need) {
     const counted = courses.filter((c) => isSw(c) && !c.plan);
     const planned = courses.filter((c) => isSw(c) && c.plan);
@@ -269,14 +273,15 @@
     const sw = common.sw_requirement;
     const swInfo = sw ? swStatus(courses, input, sw.credits) : null;
     if (sw) row('sw', '기타', 'SW 교과목', sw.credits, swInfo.have, { unit: '학점', note: sw.note, swCourses: swInfo.courses });
-    const engCourses = courses.filter((c) => isEng(c) && !c.plan);
-    const engPlanned = courses.filter((c) => isEng(c) && c.plan).length;
+    const engCourses = courses.filter((c) => engCounts(c) && !c.plan);
+    const engPlanned = courses.filter((c) => engCounts(c) && c.plan).length;
+    const engNonMajor = courses.filter((c) => isEng(c) && !engCounts(c) && !c.plan);
     const engOfficial = input.official && input.official.engHave != null ? Number(input.official.engHave) : 0;
     const engNeed = (input.official && input.official.engNeed) || ENG_DEFAULT;
     const engHave = Math.max(engOfficial, engCourses.length) + (Number(input.engManual) || 0) + engPlanned;
     row('eng', '기타', '영어강의', engNeed, engHave, {
       unit: '과목', engCourses: engCourses.map((c) => ({ t: c.t, ip: !!c.ip })),
-      note: `2008학년도 이후 입학생은 영어강좌 ${engNeed}과목 이상 (전공과목 기준, 편입생 1과목). 영어강의는 분반마다 정해져 진단표의 e 표시로 세요${engOfficial > engCourses.length ? `. 진단표 집계 ${engOfficial}과목` : ''}.`,
+      note: `2008학년도 이후 입학생은 전공과목(전공기초·전공필수·전공선택) 영어강좌 ${engNeed}과목 이상 (편입생 1과목). 영어강의는 분반마다 정해져 진단표의 e 표시로 세요${engOfficial > engCourses.length ? `. 진단표 집계 ${engOfficial}과목` : ''}${engNonMajor.length ? `. 교양 영어강의(${engNonMajor.map((c) => c.t).join(', ')})는 세지 않았어요` : ''}.`,
     });
     const examLabel = common.graduation_exam ? '졸업시험 통과 또는 대체' : '졸업프로젝트 통과';
     rows.push({ id: 'exam', area: '기타', label: examLabel, ok: !!input.examDone, flag: true, subs: common.graduation_exam_substitutes || [], note: common.graduation_note || common.graduation_exam_note, schedule: common.graduation_project_schedule || null });
@@ -407,8 +412,8 @@
   /* ===== 인포21 졸업진단표 파서 ===== */
   const DIAG_NUM = { '01': '교양필수', '04': '전공필수', '05': '전공선택', '11': '전공기초', '08': '일반선택', '20': '전공선택' };
   const MAJOR_PREFIX = /^(MGMT|ACCT|BDAS|ECON|EDU)/;
-  const DIAG_ROW = /(?:(?:^|\s)(\d{2})(?:\s+\d{2})?\s+)?([A-Z]{2,6}\s?\d{3,5}[A-Z]?)\s+(.+?)\s*(\d(?:\.\d)?)\s+(20\d{2})\s*\/\s*([12])/g;
-  const CUR_ROW = /(?:^|\s)(\d{2})\s+([A-Z]{2,6}\d{3,5}[A-Z]?)\s+(.+?)\s*(\d(?:\.\d)?)\s*$/;
+  const DIAG_ROW = /(?:(?:^|\s)(\d{2})(?:\s+\d{2})?\s+)?([A-Z]{2,6}\s?\d{3,6}[A-Z]?)\s+(.+?)\s*(\d(?:\.\d)?)\s+(20\d{2})\s*\/\s*([12])/g;
+  const CUR_ROW = /(?:^|\s)(\d{2})\s+([A-Z]{2,6}\d{3,6}[A-Z]?)\s+(.+?)\s*(\d(?:\.\d)?)\s*$/;
   const GYEYEOL = { name: '경영회계계열', depts: ['경영학과', '회계·세무학과'], common: ['경영통계학', '경영학원론', '책임경영', '회계원리'] }; // 두 학과 공통 전공기초 (2026 세칙)
   const DEPT_NAMES = ['빅데이터응용학과', '회계·세무학과', '회계ㆍ세무학과', '회계세무학과', '회계학과', '경영학과'];
   const isDiagnosis = (text) => /졸\s*업\s*진\s*단\s*표|졸업기준학점/.test(text || '');
@@ -718,7 +723,7 @@
     const drop = new Set(names.map(norm));
     const removed = (input.courses || []).filter((c) => drop.has(norm(c.t)));
     const swCr = removed.filter((c) => isSw(c)).reduce((a, c) => a + (Number(c.cr) || 0), 0);
-    const engN = removed.filter((c) => isEng(c)).length;
+    const engN = removed.filter((c) => engCounts(c)).length;
     const official = input.official ? { ...input.official, ...(input.official.sw != null ? { sw: Math.max(0, input.official.sw - swCr) } : {}), ...(input.official.engHave != null ? { engHave: Math.max(0, input.official.engHave - engN) } : {}) } : input.official;
     return { ...input, official, courses: (input.courses || []).filter((c) => !drop.has(norm(c.t))) };
   }
@@ -783,5 +788,5 @@
     return pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k)).slice(0, limit);
   }
 
-  root.KHU = { regSoFar, GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
+  root.KHU = { engCounts, regSoFar, GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
 })(typeof window !== 'undefined' ? window : globalThis);

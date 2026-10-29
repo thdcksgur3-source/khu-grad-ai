@@ -320,3 +320,4 @@ table.wd td:nth-child(5) { white-space: nowrap !important; }
 .road-hint { margin: 2px 0 10px; color: var(--muted); }
 .nearly { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: #1f7a4d; border-radius: 10px; padding: 1px 7px; margin-right: 4px; white-space: nowrap; }
 .md-done { display: inline-block; font-size: 13px; font-weight: 700; color: #1f7a4d; background: #e6f4ec; border: 1px solid #1f7a4d; border-radius: 10px; padding: 1px 8px; white-space: nowrap; }
+.engtag.off { opacity: .55; }
