@@ -174,7 +174,7 @@
       const gyNo = !!state.gyeyeol && d === '빅데이터응용학과';
       b.disabled = (d === '빅데이터응용학과' && state.year < 2022) || gyNo;
       b.title = gyNo ? '경영회계계열은 경영학과·회계학과 중에서 골라요' : b.disabled ? '빅데이터응용학과는 22학번부터 있어요' : '';
-      if (d === '회계·세무학과') b.textContent = state.year >= 2026 ? '회계학과' : '회계·세무학과';
+      if (d === '회계·세무학과') b.textContent = '회계학과';
     });
     document.querySelectorAll('#track button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === state.track)));
     document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
@@ -385,7 +385,7 @@
     const unmet = res.unmet.map((r) => `- ${r.label}: ${r.flag ? '확인 필요' : `${r.have}/${r.need}${r.unit === '과목' ? '과목' : '학점'}`}${r.missing && r.missing.length ? ` (미이수: ${r.missing.join(', ')})` : ''}`).join('\n') || '- 없음';
     const now = res.courses.filter((c) => c.ip).map((c) => c.t).join(', ');
     const planTxt = (plan.semesters || []).map((s) => `- ${termName(s)}: ${s.items.map((i) => (i.milestone ? `[졸업 절차] ${i.t}` : i.t)).join(', ')}`).join('\n');
-    return `나는 경희대학교 ${state.gyeyeol ? `${state.gyeyeol}로 입학한 ${res.year}학번이고(${res.deptLabel} 진입 기준) ` : `${res.deptLabel} ${res.year}학번이고 `} ${res.track === 'multi' ? '다전공' : '단일전공'} 과정이야.
+    return `나는 경희대학교 ${state.gyeyeol ? `${state.gyeyeol}로 입학한 ${res.year}학번이고(${res.deptLabel} 진입 기준)` : `${res.deptLabel} ${res.year}학번이고`} ${res.track === 'multi' ? '다전공' : '단일전공'} 과정이야.
 이번 학기에 듣는 과목: ${now || '없음'}
 '경영대 졸업사정표'로 이번 학기를 마친 뒤 기준으로 점검한 결과는 아래와 같아.
 
@@ -481,7 +481,7 @@ ${planTxt || '- 남은 학기 없음'}
       out.innerHTML = `<div class="sheet-head"><div><h2>졸업사정표</h2><p class="who">${esc(whoDept(res))} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}</p></div></div>
       <div class="road" style="margin-top:22px"><p class="headline">졸업진단표를 올리면, 이 자리에 졸업까지 남은 학점과 다음 학기에 들을 과목이 나와요.</p>
       <ol style="margin:12px 0 0;padding-left:20px;line-height:1.9"><li>인포21 → 졸업사정 조회에서 <b>졸업진단표를 PDF로 저장</b>해요.</li><li>왼쪽 <b>졸업진단표 PDF 올리기</b>를 눌러 파일을 골라요. 학번·학과·이번 학기 과목까지 자동으로 들어가요.</li><li>진단표가 없으면 성적 표를 붙여넣거나 과목을 검색해서 넣어도 돼요.</li></ol>
-      <div class="btnrow" style="margin-top:14px"><span class="msg">먼저 둘러보려면:</span><button class="btn ghost small" type="button" data-sample2="acct">회계·세무 19학번</button><button class="btn ghost small" type="button" data-sample2="mgmt">경영 21학번</button><button class="btn ghost small" type="button" data-sample2="bdas">빅데이터 22학번</button></div></div>
+      <div class="btnrow" style="margin-top:14px"><span class="msg">먼저 둘러보려면:</span><button class="btn ghost small" type="button" data-sample2="acct">회계 19학번</button><button class="btn ghost small" type="button" data-sample2="mgmt">경영 21학번</button><button class="btn ghost small" type="button" data-sample2="bdas">빅데이터 22학번</button></div></div>
       <p class="sub" style="margin-top:14px">성적은 이 브라우저 안에서만 계산되고 어디에도 저장되지 않아요.</p>`;
       return;
     }

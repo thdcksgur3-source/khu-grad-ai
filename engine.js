@@ -82,7 +82,8 @@
   const prefixOf = (c) => ((c.no || (lookup(c) || {}).no || '').match(/^[A-Z]+/) || [''])[0];
 
   const ruleKey = (dept) => (dept === '회계학과' ? '회계·세무학과' : dept);
-  const deptLabel = (dept, year) => (ruleKey(dept) === '회계·세무학과' ? (year >= 2026 ? '회계학과' : '회계·세무학과') : dept);
+  // 2026학년도부터 학과명이 회계학과로 바뀌어, 화면에는 학번과 상관없이 '회계학과'로 표시한다 (규칙 데이터 키는 '회계·세무학과' 그대로)
+  const deptLabel = (dept) => (ruleKey(dept) === '회계·세무학과' ? '회계학과' : dept);
   const groupFor = (dept, year) => D.rules[ruleKey(dept)].groups.find((g) => g.entry_years.includes(year));
   const byYear = (v, year) => (v && typeof v === 'object' && !Array.isArray(v) ? (v[String(year)] ?? Object.values(v).pop()) : v);
   const inList = (list, t) => (list || []).some((x) => norm(x) === norm(t));
@@ -300,7 +301,7 @@
     if (unsureCs.length) tips.push(`${unsureCs.map((c) => c.t).join(', ')} 과목은 ${year}학번 세칙의 회계과목군 목록에 없어요. 진단 표에서는 회계과목군으로 셌지만, 인정되지 않으면 회계과목군이 ${sum(unsureCs)}학점 더 부족해요. 수강 계획은 인정되지 않는 경우까지 대비해서 짰으니, 학과에 꼭 확인하세요.`);
     if (multi && year <= 2023) tips.push(`다전공 전공학점은 세칙 부칙상 "선발연도" 기준으로 적용된다고 적혀 있어요. 2024학년도 이후에 다전공으로 선발됐다면 입학년도 기준(${byYear(g.multi.total, year)}학점)이 아니라 2024 개정 기준(39학점)이 적용될 수도 있으니 학과에 확인하세요.`);
     if (common.graduation_exam) tips.push('졸업시험은 공인회계사 1차 합격, 현장실습, 공인 경진대회 입상 등으로 대체할 수 있어요.');
-    if (key === '회계·세무학과' && year <= 2023) tips.push('19~23학번 회계·세무학과는 회사법·유가증권법·재무제표분석·가치평가론이 경영과목군이에요. 회계과목군 15학점 계산에서 빠지니 주의하세요.');
+    if (key === '회계·세무학과' && year <= 2023) tips.push('19~23학번 회계학과는 회사법·유가증권법·재무제표분석·가치평가론이 경영과목군이에요. 회계과목군 15학점 계산에서 빠지니 주의하세요.');
 
     /* --- 다전공 시뮬레이션 (경영대 안) --- */
     const doubles = BIZ_DEPTS.filter((d) => d !== key).map((d2) => {
