@@ -381,10 +381,21 @@ ${planTxt || '- 남은 학기 없음'}
       render();
     }
     $('#parse').addEventListener('click', () => applyParsed(K.parseAny($('#paste').value, { now: NOW }), '붙여넣은'));
+    const PDF_FAIL_MSG = {
+      library: 'PDF 읽기 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 올려 주세요.',
+      worker: 'PDF 읽기 도구를 준비하지 못했어요. 다시 올려 보고, 계속 안 되면 페이지를 새로고침해 주세요.',
+      file: '파일을 읽지 못했어요. 파일이 기기에 내려받아져 있는지 확인하고 다시 골라 주세요.',
+      open: 'PDF를 열지 못했어요. 손상됐거나 암호가 걸린 파일일 수 있어요. 인포21에서 다시 저장해 올려 주세요.',
+      text: 'PDF에서 글자를 꺼내지 못했어요. 다시 올려 보고, 계속 안 되면 진단표 내용을 복사해서 붙여넣어 주세요.',
+    };
+    let pdfBusy = false;
     $('#pdf').addEventListener('change', async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
+      const input = e.target;
+      const f = input.files && input.files[0];
+      if (!f || pdfBusy) { input.value = ''; return; }
+      const label = document.querySelector('label[for=pdf]');
       const msg = $('#parsemsg');
+      pdfBusy = true; input.disabled = true; label.classList.add('busy'); label.setAttribute('aria-disabled', 'true');
       msg.className = 'msg'; msg.textContent = 'PDF를 읽는 중이에요…';
       try {
         const text = await pdfToText(f);
@@ -394,10 +405,16 @@ ${planTxt || '- 남은 학기 없음'}
           msg.textContent = text.trim() ? '졸업진단표 형식을 찾지 못했어요. 인포21 졸업사정 조회에서 저장한 졸업진단표 PDF인지 확인해 주세요.' : 'PDF에서 글자를 읽지 못했어요. 스캔하거나 캡처한 이미지 PDF는 읽을 수 없어요. 인포21에서 PDF로 저장한 파일을 올려 주세요.';
         } else applyParsed(r, 'PDF');
       } catch (err) {
+        logPdfFailure(err);
+        if (err && (err.stage === 'library' || err.stage === 'worker')) { resetPdfWorker(); pdfjs = null; pdfjsAttempt += 1; } // 다음 시도에서 본체와 worker를 함께 새로 불러온다
+        else if (err && (err.stage === 'open' || err.stage === 'text')) resetPdfWorker();
         msg.className = 'msg warn';
-        msg.textContent = `PDF를 열지 못했어요 (${err && err.message ? err.message : err}). 진단표 내용을 복사해서 붙여넣어 주세요.`;
+        msg.textContent = (err && PDF_FAIL_MSG[err.stage]) || 'PDF를 읽지 못했어요. 다시 올려 보고, 계속 안 되면 진단표 내용을 복사해서 붙여넣어 주세요.';
+      } finally {
+        // 같은 파일을 다시 골라도 change가 일어나도록 비우고, 버튼을 되살린다
+        input.value = ''; input.disabled = false; pdfBusy = false;
+        label.classList.remove('busy'); label.removeAttribute('aria-disabled');
       }
-      e.target.value = '';
     });
     $('#paste-example').addEventListener('click', () => { $('#paste').value = PASTE_EXAMPLE; $('#paste').focus(); });
 
@@ -512,30 +529,121 @@ ${planTxt || '- 남은 학기 없음'}
 
 
   /* ---------- PDF → 텍스트 (브라우저 안에서만 처리) ---------- */
+  // PDF.js 6.2.108 legacy 빌드. 본체(pdf.min.js)와 worker(pdf.worker.min.js)는 같은 패키지의 같은 버전이다.
+  const PDFJS_VERSION = '6.2.108';
+  const PDF_STAGES = { library: 'PDF 라이브러리 로딩', worker: 'worker 초기화', file: '파일 읽기', open: 'getDocument', text: '페이지 텍스트 추출' };
+
+  // 단계별 실패 기록. 학생 PDF 내용·파일명·개인정보는 남기지 않고 단계, 오류, 브라우저 지원 여부만 남긴다.
+  class PdfStageError extends Error {
+    constructor(stage, cause, extra) {
+      super(cause && cause.message ? cause.message : String(cause));
+      this.name = 'PdfStageError'; this.stage = stage; this.cause = cause; this.extra = extra || {};
+    }
+  }
+  function pdfEnv() {
+    const RS = typeof ReadableStream !== 'undefined' ? ReadableStream : null;
+    return {
+      userAgent: navigator.userAgent,
+      pdfjs: pdfjs ? pdfjs.lib.version : null,
+      readableStreamAsyncIterator: !!(RS && RS.prototype[Symbol.asyncIterator]),
+      readableStreamAsyncIteratorPolyfilled: !!(RS && RS.prototype[Symbol.asyncIterator] && RS.prototype[Symbol.asyncIterator].khuPolyfill),
+      moduleWorker: typeof Worker !== 'undefined',
+      fileArrayBuffer: typeof Blob !== 'undefined' && typeof Blob.prototype.arrayBuffer === 'function',
+    };
+  }
+  function logPdfFailure(err) {
+    const stage = err && err.stage ? err.stage : 'unknown';
+    const cause = err && err.cause ? err.cause : err;
+    console.groupCollapsed(`[PDF] 실패 단계: ${PDF_STAGES[stage] || stage}`);
+    console.error('오류', { name: cause && cause.name, message: cause && cause.message, stack: cause && cause.stack });
+    console.info('단계 정보', err && err.extra ? err.extra : {});
+    console.info('환경', pdfEnv());
+    console.groupEnd();
+  }
+  async function stage(name, fn, extra) {
+    try { return await fn(); } catch (e) { throw e instanceof PdfStageError ? e : new PdfStageError(name, e, extra); }
+  }
+
+  // iOS·macOS Safari는 ReadableStream 비동기 반복(for await … of stream)을 지원하지 않는다.
+  // PDF.js 내부에 그런 코드가 있어 PDF.js를 불러오기 전에 표준 동작대로 보완한다 (이미 지원하는 브라우저는 그대로 둔다).
+  function ensureStreamAsyncIterator() {
+    if (typeof ReadableStream === 'undefined' || ReadableStream.prototype[Symbol.asyncIterator]) return;
+    const values = function ({ preventCancel = false } = {}) {
+      const reader = this.getReader();
+      return {
+        async next() {
+          try {
+            const r = await reader.read();
+            if (r.done) reader.releaseLock();
+            return r;
+          } catch (e) { reader.releaseLock(); throw e; }
+        },
+        async return(value) {
+          if (!preventCancel) { const c = reader.cancel(value); reader.releaseLock(); await c; } else reader.releaseLock();
+          return { done: true, value };
+        },
+        [Symbol.asyncIterator]() { return this; },
+      };
+    };
+    values.khuPolyfill = true;
+    Object.defineProperty(ReadableStream.prototype, 'values', { value: values, writable: true, configurable: true });
+    Object.defineProperty(ReadableStream.prototype, Symbol.asyncIterator, { value: values, writable: true, configurable: true });
+  }
+
   let pdfjs = null;
+  let pdfjsAttempt = 0; // 로딩 실패 뒤 재시도할 때 브라우저에 남은 실패한 모듈 캐시를 피하려고 주소에 붙이는 번호
   async function loadPdfjs() {
     if (pdfjs) return pdfjs;
+    ensureStreamAsyncIterator();
     const local = new URL('vendor/', document.baseURI).href;
-    try {
-      const [lib, cm] = await Promise.all([import(local + 'pdf.min.js'), import(local + 'cmaps.js')]);
-      lib.GlobalWorkerOptions.workerSrc = local + 'pdf.worker.min.js';
-      const maps = cm.default;
-      // 한글 CMap을 파일 대신 내장 데이터에서 읽어 오는 팩토리
-      class EmbeddedData {
-        constructor() {}
-        async fetch({ kind, filename }) {
-          if (kind === 'cMapUrl' && maps[filename]) return Uint8Array.from(atob(maps[filename]), (c) => c.charCodeAt(0));
-          throw new Error(`내장 데이터 없음: ${filename}`);
-        }
+    const q = pdfjsAttempt ? `?retry=${pdfjsAttempt}` : '';
+    const [lib, cm] = await stage('library', () => Promise.all([import(local + 'pdf.min.js' + q), import(local + 'cmaps.js' + q)]));
+    if (lib.version !== PDFJS_VERSION) throw new PdfStageError('library', new Error(`PDF.js 버전 불일치: ${lib.version} (기대 ${PDFJS_VERSION})`));
+    lib.GlobalWorkerOptions.workerSrc = local + 'pdf.worker.min.js' + q; // 본체와 같은 6.2.108 worker
+    const maps = cm.default;
+    // 한글 CMap을 파일 대신 내장 데이터에서 읽어 오는 팩토리 (cmaps.js)
+    class EmbeddedData {
+      constructor() {}
+      async fetch({ kind, filename }) {
+        if (kind === 'cMapUrl' && maps[filename]) return Uint8Array.from(atob(maps[filename]), (c) => c.charCodeAt(0));
+        throw new Error(`내장 데이터 없음: ${filename}`);
       }
-      pdfjs = { lib, opts: { BinaryDataFactory: EmbeddedData, cMapUrl: 'embedded/', cMapPacked: true, useWorkerFetch: false } };
-    } catch (e) {
-      const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/';
-      const lib = await import(cdn + 'pdf.min.mjs');
-      lib.GlobalWorkerOptions.workerSrc = cdn + 'pdf.worker.min.mjs';
-      pdfjs = { lib, opts: { cMapUrl: cdn + 'cmaps/', cMapPacked: true } };
     }
+    pdfjs = { lib, worker: null, opts: { BinaryDataFactory: EmbeddedData, cMapUrl: 'embedded/', cMapPacked: true, useWorkerFetch: false } };
     return pdfjs;
+  }
+  // worker를 따로 띄워 두고 재사용한다. 실패하면 다음 시도에서 새로 만든다.
+  async function getPdfWorker(lib) {
+    if (pdfjs.worker && !pdfjs.worker.destroyed) return pdfjs.worker;
+    const w = typeof lib.PDFWorker.create === 'function' ? lib.PDFWorker.create({}) : new lib.PDFWorker({});
+    try { await w.promise; } catch (e) { try { w.destroy(); } catch (_) {} throw e; }
+    pdfjs.worker = w;
+    return w;
+  }
+  function resetPdfWorker() {
+    if (pdfjs && pdfjs.worker) { try { pdfjs.worker.destroy(); } catch (_) {} pdfjs.worker = null; }
+  }
+  function readFileBytes(file) {
+    if (typeof file.arrayBuffer === 'function') return file.arrayBuffer().then((b) => new Uint8Array(b));
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(new Uint8Array(fr.result));
+      fr.onerror = () => reject(fr.error || new Error('파일을 읽지 못했어요'));
+      fr.readAsArrayBuffer(file);
+    });
+  }
+  // page.getTextContent()는 내부에서 for await로 스트림을 돈다. 브라우저 지원과 무관하게 reader로 직접 읽는다.
+  async function readTextItems(page) {
+    const reader = page.streamTextContent().getReader();
+    const items = [];
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        for (const it of value.items) items.push(it);
+      }
+    } finally { reader.releaseLock(); }
+    return items;
   }
   function toLines(items) {
     const sorted = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
@@ -556,22 +664,31 @@ ${planTxt || '- 남은 학기 없음'}
   }
   async function pdfToText(file) {
     const { lib, opts } = await loadPdfjs();
-    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), ...opts }).promise;
-    const out = [];
-    for (let n = 1; n <= doc.numPages; n += 1) {
-      const page = await doc.getPage(n);
-      const vp = page.getViewport({ scale: 1 });
-      const tc = await page.getTextContent();
-      const items = tc.items.filter((i) => i.str && i.str.trim()).map((i) => ({ s: i.str, x: i.transform[4], y: vp.height - i.transform[5], w: i.width, h: Math.abs(i.transform[3]) || 8 }));
-      const libHead = items.find((i) => /교양\s*\/\s*기타/.test(i.s));
-      const majHead = items.find((i) => /^\s*전공학점\s*$/.test(i.s));
-      const splitY = libHead ? libHead.y - 3 : Infinity;
-      const splitX = majHead ? majHead.x - 4 : vp.width * 0.43;
-      const top = items.filter((i) => i.y < splitY);
-      const rest = items.filter((i) => i.y >= splitY);
-      out.push(...toLines(top), ...toLines(rest.filter((i) => i.x < splitX)), ...toLines(rest.filter((i) => i.x >= splitX)));
+    const worker = await stage('worker', () => getPdfWorker(lib));
+    const data = await stage('file', () => readFileBytes(file), { bytes: file.size });
+    const task = lib.getDocument({ data, worker, ...opts });
+    try {
+      const doc = await stage('open', () => task.promise, { bytes: file.size });
+      const out = [];
+      for (let n = 1; n <= doc.numPages; n += 1) {
+        const meta = { page: n, pages: doc.numPages };
+        const page = await stage('text', () => doc.getPage(n), meta);
+        const vp = page.getViewport({ scale: 1 });
+        const raw = await stage('text', () => readTextItems(page), meta);
+        const items = raw.filter((i) => i.str && i.str.trim()).map((i) => ({ s: i.str, x: i.transform[4], y: vp.height - i.transform[5], w: i.width, h: Math.abs(i.transform[3]) || 8 }));
+        const libHead = items.find((i) => /교양\s*\/\s*기타/.test(i.s));
+        const majHead = items.find((i) => /^\s*전공학점\s*$/.test(i.s));
+        const splitY = libHead ? libHead.y - 3 : Infinity;
+        const splitX = majHead ? majHead.x - 4 : vp.width * 0.43;
+        const top = items.filter((i) => i.y < splitY);
+        const rest = items.filter((i) => i.y >= splitY);
+        out.push(...toLines(top), ...toLines(rest.filter((i) => i.x < splitX)), ...toLines(rest.filter((i) => i.x >= splitX)));
+      }
+      return out.join('\n');
+    } finally {
+      // 문서만 정리하고 공유 worker는 남겨 둔다
+      task.destroy().catch(() => {});
     }
-    return out.join('\n');
   }
 
   bind();

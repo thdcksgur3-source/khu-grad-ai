@@ -219,3 +219,4 @@ label.btn:focus-within { outline: 2px solid var(--crimson); outline-offset: 2px;
 .suggest li button:disabled { color: var(--faint); cursor: default; }
 
 .field h2::before { content: ''; display: inline-block; width: 4px; height: 14px; background: var(--crimson); border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+label.btn.busy { opacity: .6; pointer-events: none; }
