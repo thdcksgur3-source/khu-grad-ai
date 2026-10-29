@@ -317,3 +317,5 @@ table.wd td:nth-child(5) { white-space: nowrap !important; }
 .road li.ms::marker { color: var(--crimson); }
 .mstag { display: inline-block; font-size: 11px; font-weight: 600; color: var(--crimson); border: 1px solid var(--crimson); border-radius: 4px; padding: 0 5px; margin: 0 2px; vertical-align: 1px; }
 .sim.dbl td:nth-child(4) { white-space: normal; min-width: 96px; }
+.road-hint { margin: 2px 0 10px; color: var(--muted); }
+.nearly { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: #1f7a4d; border-radius: 10px; padding: 1px 7px; margin-right: 4px; white-space: nowrap; }

@@ -352,9 +352,20 @@ ${planTxt || '- 남은 학기 없음'}
     const when = ct && ipCr ? `이번 학기(${ct.year}-${ct.sem})를 마치면` : '지금 기준으로';
     let headline;
     if (!blocking.length) headline = `${when} 학점 요건은 모두 채워요.`;
-    else if (!plan.done) headline = `${when} 졸업까지 <em>${totalShort}학점</em> 남았어요. 한 학기 ${plan.maxCr}학점으로는 4년 안에 다 채우기 어려워요.`;
+    else if (!plan.done) headline = `${when} 졸업까지 <em>${totalShort}학점</em> 남았어요. 한 학기 ${plan.maxCr}학점씩 들으면 앞으로 ${n}학기 안에는 다 채우기 빠듯해요.`;
     else headline = `${when} 졸업까지 <em>${totalShort}학점</em>, <em>${n}학기</em> 남았어요.`;
     if (blocking.length && totalShort === 0) headline = `${when} 졸업학점은 채우지만, 영역별로 부족한 요건이 있어 <em>${n}학기</em> 더 필요해요.`;
+    // 남은 학기 기준 안내: 단정하지 않고, 입력이 빠졌을 가능성과 줄이는 방법을 함께 알려 준다
+    const lastReg = n ? plan.semesters[n - 1].reg : null;
+    const hints = [];
+    if (!plan.done || (lastReg && lastReg > 8)) {
+      hints.push(lastReg && lastReg > 8 && plan.done
+        ? `이 계획대로면 ${lastReg}학기째에 졸업해서 정규 8학기를 넘겨요 (${plan.semesters.regKnown ? '진단표 등록횟수' : '휴학 없이 다녔다고 가정한 등록 학기'} 기준).`
+        : '남은 학기 기준으로 계산한 결과예요.');
+      if (ct && !ipCr) hints.push('이번 학기에 듣는 과목을 넣으면 더 정확해져요.');
+      hints.push('계절학기를 듣거나 "한 학기에 들을 학점"을 늘리면 줄어들 수 있어요.');
+    }
+    const hintHtml = hints.length ? `<p class="sub road-hint">${hints.map(esc).join(' ')}</p>` : '';
     const first = plan.semesters[0];
     const later = plan.semesters.slice(1);
     const li = (i) => (i.milestone
@@ -363,7 +374,7 @@ ${planTxt || '- 남은 학기 없음'}
     const msN = plan.semesters.reduce((a, s) => a + s.items.filter((i) => i.milestone).length, 0);
     const flags = plan.flags.length ? `<p class="sub" style="margin-top:10px">학점과 별개로 챙길 것: ${plan.flags.map(esc).join(', ')}${msN ? ' (언제 하면 되는지 계획에 \'졸업 절차\'로 표시했어요)' : ''}</p>` : '';
     return `<div class="road" aria-live="polite">
-      <p class="headline">${headline}</p>
+      <p class="headline">${headline}</p>${hintHtml}
       <div class="stats"><span>이수 완료 <b>${doneCr}</b>학점</span><span>수강 중 <b>${ipCr}</b>학점</span><span>졸업 기준 <b>${proj.credits.need}</b>학점</span>${blocking.length ? `<span>남은 요건 <b>${blocking.length}</b>개</span>` : ''}</div>
       ${first ? `<div class="plan">
         <div class="term first"><h4>${termName(first)}에 들을 과목 <small>${first.credits}학점</small></h4><ol>${first.items.map(li).join('')}</ol>
@@ -487,7 +498,7 @@ ${planTxt || '- 남은 학기 없음'}
         <td>${d.extra > 0 ? `<span class="big">+${d.extra}</span>학점 더` : d.extra < 0 ? `<span class="big">${-d.extra}</span>학점 덜<div class="sub">1전공 기준이 줄어서 남은 전공학점이 오히려 적어요. 졸업 ${res.credits.need}학점은 그대로예요</div>` : '<span class="big">0</span>학점, 똑같아요'}</td></tr>`).join('')}
       </tbody></table>
       <div class="box" style="margin-top:16px"><h4>마이크로디그리</h4>
-        <ul class="reclist">${res.mds.map((m) => `<li><span><b>${esc(m.name)}</b> <small>${esc(m.host)}</small><div class="sub">${m.done.length ? `이수: ${m.done.map(esc).join(', ')}` : '아직 이수한 과목 없음'}${m.remain ? `, 남은 과목: ${m.todo.map(esc).join(', ')}` : ''}</div></span><small>${m.remain ? `${m.remain}학점 남음` : '요건 충족'}</small></li>`).join('')}</ul>
+        <ul class="reclist">${res.mds.map((m) => `<li><span><b>${esc(m.name)}</b>${m.remain && (m.todo.length === 1 || m.remain <= 3) ? ' <span class="nearly">거의 다 왔어요</span>' : ''} <small>${esc(m.host)}</small><div class="sub">${m.done.length ? `이수: ${m.done.map(esc).join(', ')}` : '아직 이수한 과목 없음'}${m.remain ? `, 남은 과목: ${m.todo.map(esc).join(', ')}` : ''}</div></span><small>${m.remain ? `${m.remain}학점 남음` : '요건 충족'}</small></li>`).join('')}</ul>
       </div>
     </section>
 
