@@ -305,10 +305,14 @@
     /* --- 다전공 시뮬레이션 (경영대 안) --- */
     const doubles = BIZ_DEPTS.filter((d) => d !== key).map((d2) => {
       const label2 = deptLabel(d2, 2026);
-      const intra = (g.intra_double || []).find((x) => ruleKey(x.second) === d2 || (d2 === '회계·세무학과' && /회계/.test(x.second)));
-      const g2 = D.rules[d2].groups[D.rules[d2].groups.length - 1];
+      const intra0 = (g.intra_double || []).find((x) => ruleKey(x.second) === d2 || (d2 === '회계·세무학과' && /회계/.test(x.second)));
+      // 같은 세칙 묶음 안에서도 연도별로 표가 다르면(by_year) 그 해 값을 쓴다 (예: 회계 2026 → 빅데이터 2전공 21학점)
+      const intra = intra0 && intra0.by_year && intra0.by_year[String(year)] ? { ...intra0, ...intra0.by_year[String(year)] } : intra0;
+      // 2전공 과목 목록은 같은 입학년도 세칙을 쓰고, 그 해 세칙이 없으면(빅데이터 21학번 이전) 최신 세칙을 쓴다
+      const g2same = D.rules[d2].groups.find((x) => x.entry_years.includes(year));
+      const g2 = g2same || D.rules[d2].groups[D.rules[d2].groups.length - 1];
       const firstNeed = intra ? intra.first_total : byYear(g.multi.total, year);
-      const secondNeed = intra ? intra.second_total : byYear(g2.multi.total, 2026);
+      const secondNeed = intra ? intra.second_total : byYear(g2.multi.total, g2same ? year : 2026);
       const ownSet = new Set([...g.basic_courses, ...g.required_courses].map(norm));
       const secondCourses = courses.filter((c) => prefixOf(c) === PREFIX[d2] && !ownSet.has(norm(c.t)));
       const secondCr = Math.min(sum(secondCourses), secondNeed);
@@ -316,7 +320,10 @@
       const remainDouble = Math.max(0, firstNeed - majorTotal) + (secondNeed - secondCr);
       const remainSingle = Math.max(0, byYear(g.single.total, year) - majorTotal);
       const req2 = g2.required_courses.filter((t) => !/졸업논문/.test(t) && !ownSet.has(norm(t)) && !courses.some((c) => norm(c.t) === norm(t)));
-      return { dept: label2, firstNeed, secondNeed, secondCr, firstHave, remainDouble, remainSingle, extra: remainDouble - remainSingle, req2, exact: !!intra };
+      // 경영대 내 다전공은 2전공 학과의 졸업시험·졸업프로젝트와 졸업논문도 따로 통과해야 한다 (경영대학 학사 FAQ, 2025.07.02)
+      const c2 = D.rules[d2].common || {};
+      const grad2 = { exam: c2.graduation_exam ? '졸업시험(또는 대체요건)' : '졸업프로젝트', thesis: (g2.required_courses || []).find((t) => /졸업논문/.test(t)) || null };
+      return { dept: label2, firstNeed, secondNeed, secondCr, firstHave, remainDouble, remainSingle, extra: remainDouble - remainSingle, req2, exact: !!intra, grad2 };
     }).sort((a, b) => a.extra - b.extra);
 
     /* --- 마이크로디그리 --- */

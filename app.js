@@ -570,13 +570,14 @@ ${planTxt || '- 남은 학기 없음'}
 
     <section class="section">
       <h3>다전공하면 학점이 얼마나 달라질까</h3>
-      <p class="lead">경영대 안에서 다전공하면 전공기초와 공통 전공필수를 같이 인정받아요. 1전공 요구학점도 줄어들어서, 실제로 늘어나는 부담은 생각보다 작을 수 있어요.</p>
-      <table class="sim dbl"><thead><tr><th>제2전공</th><th>1전공 기준</th><th>2전공 진행</th><th>남은 전공학점 (단일전공과 비교)</th></tr></thead><tbody>
-      ${res.doubles.map((d) => `<tr><td><b>${esc(d.dept)}</b>${d.req2.length ? `<div class="sub">2전공 필수: ${d.req2.map(esc).join(', ')}</div>` : ''}${d.exact ? '' : '<div class="sub">세칙에 이 조합의 중복인정 표가 없어 일반 다전공 기준으로 추정했어요</div>'}</td>
-        <td>${d.firstNeed}학점</td>
-        <td>${d.secondCr} / ${d.secondNeed}학점<div class="bar"><span style="width:${Math.round((d.secondCr / d.secondNeed) * 100)}%"></span></div></td>
-        <td>${d.extra > 0 ? `<span class="big">+${d.extra}</span>학점 더` : d.extra < 0 ? `<span class="big">${-d.extra}</span>학점 덜<div class="sub">1전공 기준이 줄어서 남은 전공학점이 오히려 적어요. 졸업 ${res.credits.need}학점은 그대로예요</div>` : '<span class="big">0</span>학점, 똑같아요'}</td></tr>`).join('')}
+      <p class="lead">다전공을 하면 ${esc(res.deptLabel)} 요구학점이 줄고, 겹치는 전공기초·전공필수는 같이 인정받아요. 지금 들은 과목을 기준으로 졸업까지 남은 전공학점을 단일전공일 때와 다전공일 때로 비교했어요.</p>
+      <table class="sim dbl"><thead><tr><th>다전공할 학과</th><th>1전공 요건</th><th>2전공 요건</th><th>남은 전공학점 비교</th></tr></thead><tbody>
+      ${res.doubles.map((d) => { const firstLeft = d.firstNeed - d.firstHave, secondLeft = d.secondNeed - d.secondCr; return `<tr><td><b>${esc(d.dept)}</b>${d.req2.length ? `<div class="sub">꼭 들을 과목: ${d.req2.map(esc).join(', ')}</div>` : ''}${d.grad2 ? `<div class="sub">${esc(d.grad2.exam)} 통과${d.grad2.thesis ? `, ${esc(d.grad2.thesis)} 수강신청` : ''}도 따로 해야 해요</div>` : ''}${d.exact ? '' : '<div class="sub">세칙에 이 조합의 표가 없어 일반 다전공 기준으로 추정했어요</div>'}</td>
+        <td data-label="1전공 요건">${d.firstNeed}학점 기준<div class="sub">${firstLeft > 0 ? `<span class="short">${firstLeft}학점 남음</span>` : '<span class="ok-text">이미 채웠어요</span>'}</div></td>
+        <td data-label="2전공 요건">${d.secondCr} / ${d.secondNeed}학점<div class="bar"><span style="width:${Math.round((d.secondCr / d.secondNeed) * 100)}%"></span></div><div class="sub">${secondLeft > 0 ? `${secondLeft}학점 남음` : '이미 채웠어요'}</div></td>
+        <td data-label="남은 전공학점"><div class="cmp2"><span>단일전공 <b>${d.remainSingle}</b>학점</span><span>다전공 <b>${d.remainDouble}</b>학점</span></div><div class="sub">${d.extra > 0 ? `다전공이 <b class="short">${d.extra}학점 더</b> 들어요` : d.extra < 0 ? `다전공이 오히려 <b>${-d.extra}학점 덜</b> 들어요` : '어느 쪽이든 같아요'}</div></td></tr>`; }).join('')}
       </tbody></table>
+      <p class="msg" style="margin-top:8px">졸업 ${res.credits.need}학점은 어느 쪽이든 같아요. 들은 과목을 1전공과 2전공에 어떻게 나눠 인정하는지는 학과가 정하니, 다전공 신청 전에 학과에 확인하세요. 경영통계학·경영학원론·회계원리 선수과목 규정은 경영대 밖 학생이 대상이에요.</p>
       <div class="box" style="margin-top:16px"><h4>마이크로디그리</h4>
         <ul class="reclist">${res.mds.map((m) => `<li><span><b>${esc(m.name)}</b>${m.remain && (m.todo.length === 1 || m.remain <= 3) ? ' <span class="nearly">거의 다 왔어요</span>' : ''} <small>${esc(m.host)}</small><div class="sub">${m.done.length ? `이수: ${m.done.map(esc).join(', ')}` : '아직 이수한 과목 없음'}${m.remain ? `, 남은 과목: ${m.todo.map(esc).join(', ')}` : ''}</div></span><small>${m.remain ? `${m.remain}학점 남음` : '<span class="md-done">✓ 요건 충족</span>'}</small></li>`).join('')}</ul>
       </div>

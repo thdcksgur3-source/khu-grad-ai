@@ -282,7 +282,13 @@ window.KHU_DATA = {
               "first_total": 39,
               "second_total": 18,
               "grand_total": 57,
-              "note": "2026 세칙 표는 빅데이터 제2전공 21학점"
+              "note": "2024·2025 세칙 표는 빅데이터 2전공 18학점(전필 9+전선 9), 2026 세칙 표는 21학점(전필 12+전선 9)",
+              "by_year": {
+                "2026": {
+                  "second_total": 21,
+                  "grand_total": 60
+                }
+              }
             }
           ]
         }

@@ -321,3 +321,14 @@ table.wd td:nth-child(5) { white-space: nowrap !important; }
 .nearly { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: #1f7a4d; border-radius: 10px; padding: 1px 7px; margin-right: 4px; white-space: nowrap; }
 .md-done { display: inline-block; font-size: 13px; font-weight: 700; color: #1f7a4d; background: #e6f4ec; border: 1px solid #1f7a4d; border-radius: 10px; padding: 1px 8px; white-space: nowrap; }
 .engtag.off { opacity: .55; }
+.cmp2 { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+.cmp2 b { font: 700 17px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
+.ok-text { color: #1f7a4d; font-weight: 600; }
+@media (max-width: 640px) {
+  .sim.dbl thead { display: none; }
+  .sim.dbl tr { display: grid; grid-template-columns: 1fr 1fr 1fr; column-gap: 10px; border-bottom: 1px solid var(--line-soft); padding: 10px 0; }
+  .sim.dbl td { border-bottom: 0; padding: 4px 0; white-space: normal !important; min-width: 0; }
+  .sim.dbl td:first-child { grid-column: 1 / -1; }
+  .sim.dbl td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .cmp2 { white-space: normal; }
+}
