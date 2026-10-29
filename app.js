@@ -49,6 +49,9 @@
     interests: [], tab: 'paste', sampleName: null, official: null, maxCr: 18,
   };
   let lastCount = -1;
+  // ChatKHU 질문: 사용자가 고친 내용은 화면이 다시 그려져도 유지한다 (다른 학생을 불러오면 초기화)
+  let promptEdit = null; // { text, base }
+  let promptBase = '';
 
   /* ---------- 입력 렌더 ---------- */
   function renderInputs() {
@@ -357,9 +360,15 @@ ${planTxt || '- 남은 학기 없음'}
 
     <section class="section ask">
       <h3><img src="assets/chatkhu.png" alt="ChatKHU" width="86" height="26">에게 이어서 물어보기</h3>
-      <p class="lead">진단 결과와 수강 계획 초안을 담은 질문이에요. 복사해서 ChatKHU에 붙여넣으면 진로에 맞게 계획을 다듬을 수 있어요.</p>
-      <textarea id="prompt" readonly>${esc(chatkhuPrompt(res, plan))}</textarea>
-      <div class="btnrow" style="margin-top:8px"><button class="btn" type="button" id="copy">질문 복사하기</button><span class="msg" id="copied" aria-live="polite"></span></div>
+      <p class="lead">진단 결과와 수강 계획 초안을 담은 질문이에요. <b>궁금한 점이나 상황(진로, 희망 분야, 다음 학기 사정 등)을 직접 고치거나 덧붙인 뒤</b> 복사해서 ChatKHU에 붙여넣으세요.</p>
+      ${(() => {
+        promptBase = chatkhuPrompt(res, plan);
+        const stale = promptEdit && promptEdit.base !== promptBase;
+        return `<label class="sr-only" for="prompt">ChatKHU에 보낼 질문 (수정 가능)</label>
+      <textarea id="prompt" spellcheck="false">${esc(promptEdit ? promptEdit.text : promptBase)}</textarea>
+      <p class="msg" id="promptnote" aria-live="polite" style="margin:6px 0 0">${stale ? '진단 결과가 바뀌었어요. 고친 내용은 그대로 두었고, 새 결과를 넣으려면 기본 질문으로 되돌리세요.' : promptEdit ? '고친 내용은 결과가 바뀌어도 그대로 남아요.' : '이 칸을 눌러 바로 고칠 수 있어요.'}</p>
+      <div class="btnrow" style="margin-top:8px"><button class="btn" type="button" id="copy">질문 복사하기</button><button class="btn ghost" type="button" id="resetPrompt"${promptEdit ? '' : ' hidden'}>기본 질문으로 되돌리기</button><span class="msg" id="copied" aria-live="polite"></span></div>`;
+      })()}
     </section>
 
     <div class="foot">
@@ -399,6 +408,7 @@ ${planTxt || '- 남은 학기 없음'}
         state.sw = 0; // 진단표의 공식 SW 학점은 state.official.sw로 들어가 과목 목록과 함께 계산된다
         state.liberal = { dist: 0, free: 0, general: 0, areas: state.liberal.areas, reqChecked: [], engExempt: false };
         state.official = Object.keys(r.official).length ? r.official : null;
+        promptEdit = null;
         state.interests = []; state.interestsSet = false;
         state.sampleName = null;
         const ipN = r.courses.filter((c) => c.ip).length;
@@ -501,7 +511,7 @@ ${planTxt || '- 남은 학기 없음'}
       render();
     });
     $('#maxcr').addEventListener('change', (e) => { state.maxCr = Number(e.target.value); renderResult(); });
-    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; render(); });
+    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; promptEdit = null; render(); });
 
     $('#libreq').addEventListener('change', (e) => {
       const t = e.target.dataset.req; if (!t) return;
@@ -534,11 +544,19 @@ ${planTxt || '- 남은 학기 없음'}
       const s = SAMPLES[b.dataset.sample];
       Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses })));
       state.liberal = { reqChecked: [], engExempt: false, ...JSON.parse(JSON.stringify(s.liberal)) };
-      state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null;
+      state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; promptEdit = null;
       render();
       if (window.matchMedia('(max-width: 960px)').matches) $('#sheet').scrollIntoView({ behavior: 'smooth' });
     });
 
+    $('#sheet').addEventListener('input', (e) => {
+      if (e.target.id !== 'prompt') return;
+      const v = e.target.value;
+      promptEdit = v === promptBase ? null : { text: v, base: promptBase };
+      $('#resetPrompt').hidden = !promptEdit;
+      $('#copied').textContent = '';
+      $('#promptnote').textContent = promptEdit ? '고친 내용은 결과가 바뀌어도 그대로 남아요.' : '이 칸을 눌러 바로 고칠 수 있어요.';
+    });
     $('#sheet').addEventListener('click', (e) => {
       const sb = e.target.closest('[data-sample2]');
       if (sb) { document.querySelector(`#samples button[data-sample="${sb.dataset.sample2}"]`).click(); return; }
@@ -550,6 +568,14 @@ ${planTxt || '- 남은 학기 없음'}
         state.interests = [...s];
         state.interestsSet = true;
         renderResult();
+        return;
+      }
+      if (e.target.id === 'resetPrompt') {
+        promptEdit = null;
+        const ta = $('#prompt'); ta.value = promptBase;
+        e.target.hidden = true;
+        $('#promptnote').textContent = '기본 질문으로 되돌렸어요.'; $('#copied').textContent = '';
+        ta.focus();
         return;
       }
       if (e.target.id === 'copy') {

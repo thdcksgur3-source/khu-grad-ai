@@ -235,3 +235,5 @@ label.btn.busy { opacity: .6; pointer-events: none; }
 .swall table td.num { white-space: nowrap !important; }
 @media (max-width: 640px) { .swall table th:nth-child(3), .swall table td:nth-child(3) { display: none; } }
 .swall table th, .swall table td.st { white-space: nowrap !important; }
+.ask textarea:focus { outline: 2px solid var(--khu-red-bright); outline-offset: 1px; border-color: transparent; }
+.ask .btn.ghost { background: #fff; color: var(--khu-red-bright); border-color: #eec2bf; }
