@@ -211,10 +211,12 @@
     const groupCr = {};
     electives.forEach((c) => { groupCr[c.grp] = (groupCr[c.grp] || 0) + (Number(c.cr) || 0); });
     const capKey = Object.keys(eg).find((k) => k.endsWith('_max'));
+    let capInfo = null;
     if (capKey) {
       const grpName = capKey.startsWith('경영') ? '경영' : capKey.replace('_max', '');
       const over = Math.max(0, (groupCr[grpName] || 0) - eg[capKey]);
       electiveCr -= over;
+      capInfo = { name: `${grpName}과목군`, max: eg[capKey], have: groupCr[grpName] || 0, over };
     }
     const majorTotal = basicCr + requiredCr + electiveCr;
     const totalNeed = byYear(req.total, year);
@@ -259,7 +261,7 @@
     row('lib-total', '교양', '교양 합계', libMin, libTotal, lib.engExempt ? { note: '대학영어 면제 2학점을 뺀 기준 — 면제 학점은 총학점에 들어가지 않아요' } : {});
     row('m-basic', '전공', '전공기초', req.basic, basicCr, { missing: missingBasic });
     row('m-req', '전공', '전공필수', req.required, requiredCr, { missing: missingRequired, choose: chooseInfo });
-    row('m-elec', '전공', '전공선택', electiveNeed, electiveCr, { groups: groupChecks });
+    row('m-elec', '전공', '전공선택', electiveNeed, electiveCr, { groups: groupChecks, cap: capInfo });
     groupChecks.forEach((gc) => { if (gc.have < gc.need) rows.find((r) => r.id === 'm-elec').ok = false; });
     row('m-total', '전공', multi ? '전공 합계 (다전공 기준)' : '전공 합계', totalNeed, majorTotal);
 
@@ -277,7 +279,7 @@
       note: `2008학년도 이후 입학생은 영어강좌 ${engNeed}과목 이상 (전공과목 기준, 편입생 1과목). 영어강의는 분반마다 정해져 진단표의 e 표시로 세요${engOfficial > engCourses.length ? `. 진단표 집계 ${engOfficial}과목` : ''}.`,
     });
     const examLabel = common.graduation_exam ? '졸업시험 통과 또는 대체' : '졸업프로젝트 통과';
-    rows.push({ id: 'exam', area: '기타', label: examLabel, ok: !!input.examDone, flag: true, subs: common.graduation_exam_substitutes || [], note: common.graduation_note || common.graduation_exam_note });
+    rows.push({ id: 'exam', area: '기타', label: examLabel, ok: !!input.examDone, flag: true, subs: common.graduation_exam_substitutes || [], note: common.graduation_note || common.graduation_exam_note, schedule: common.graduation_project_schedule || null });
     rows.push({ id: 'thesis', area: '기타', label: `${thesis} 수강신청`, ok: !!input.thesisDone || courses.some((c) => /졸업논문/.test(c.t)), flag: true });
 
     /* --- 놓치기 쉬운 규정 --- */
@@ -518,6 +520,42 @@
 
 
   /* ===== 졸업 로드맵: 다음 학기부터 졸업까지 학기별 수강 계획 ===== */
+  // 지금까지 등록한 학기 수: 진단표의 등록횟수가 있으면 그 값, 없으면 입학 학기부터 지금 학기까지(휴학 없다고 가정)
+  function regSoFar(input, now) {
+    const o = input.official || {};
+    if (o.regCount != null && !Number.isNaN(Number(o.regCount))) return { n: Number(o.regCount), known: true };
+    const cur = currentTerm(now) || (() => { const t = nextTerm(now); return t.sem === 1 ? { year: t.year - 1, sem: 2 } : { year: t.year, sem: 1 }; })();
+    const y = Number(input.year);
+    return { n: Math.max(0, (cur.year - y) * 2 + cur.sem), known: false };
+  }
+  // 학점과 별개인 졸업 절차(졸업프로젝트 신청, 졸업논문 수강신청)를 계획 학기에 표시한다
+  function placeMilestones(semesters, res, input, now) {
+    if (!semesters.length) return;
+    const common = D.rules[ruleKey(input.dept)].common || {};
+    const reg = regSoFar(input, now);
+    const regAt = (i) => reg.n + i + 1;
+    const lastI = semesters.length - 1;
+    const rowOf = (id) => res.rows.find((r) => r.id === id);
+    const push = (i, item) => semesters[i].items.push({ cr: 0, milestone: true, ...item });
+    const proj = rowOf('exam');
+    if (common.graduation_project && proj && !proj.ok) {
+      const minT = common.project_min_terms || 7;
+      let i = semesters.findIndex((_, k) => regAt(k) >= minT);
+      const early = i < 0;
+      if (early) i = lastI;
+      push(i, { t: '졸업프로젝트 신청·수행', why: `${minT}학기 이상 등록하면 신청${common.graduation_project_schedule ? ` · ${common.graduation_project_schedule}` : ''}${early ? ` · 계획상 ${minT}학기 등록 전이라 학과 확인 필요` : ''}` });
+    }
+    const th = rowOf('thesis');
+    const thesisT = (res.g.required_courses || []).find((t) => /졸업논문/.test(t));
+    if (th && !th.ok && thesisT) {
+      const minT = common.thesis_min_terms;
+      const short = minT && regAt(lastI) < minT;
+      push(lastI, { t: thesisT, why: minT ? `졸업학기 수강신청 · 졸업프로젝트 통과 + ${minT}학기 이상 등록해야 Pass${short ? ` · 계획상 ${minT}학기 등록 전이라 학과 확인 필요` : ''}` : '졸업학기 수강신청 (0학점)' });
+    }
+    semesters.forEach((s, k) => { s.reg = regAt(k); });
+    semesters.regKnown = reg.known;
+  }
+
   function termsFrom(start, n) {
     const out = [];
     let { year, sem } = start;
@@ -588,7 +626,7 @@
       // ⑥ 교양 배분·자유, SW
       let dShort = row('lib-dist').short;
       const haveAreas = new Set(row('lib-dist').areas || base.liberal.areas || []);
-      let areaShort = res.year >= 2024 ? Math.max(0, 3 - haveAreas.size - extraAreas) : 0;
+      let areaShort = res.year >= 2024 ? Math.max(0, 3 - haveAreas.size) : 0; // haveAreas에는 앞 학기에 넣은 계획 자리(추가영역)도 들어 있다
       // SW 배분이수 과목은 SW 요건과 배분이수(영역)를 함께 채운다. 새 영역을 먼저.
       if (swLeft() > 0 && (dShort > 0 || areaShort > 0)) {
         const opts = swOptions({ dept: input.dept, year, interests, takenNorms: takenSet, distShort: Math.max(dShort, 1), areas: [...haveAreas] })
@@ -640,10 +678,11 @@
 
       courses = courses.concat(items.map((i) => ({ t: i.t, no: i.no || null, cr: i.cr, cat: i.cat || null, plan: true, ...(i.sw ? { sw: i.sw } : {}), ...(i.eng ? { eng: i.eng } : {}) })));
       res = run();
+      if (!items.length) break; // 더 넣을 과목이 없으면 빈 학기를 만들지 않고 멈춘다
       semesters.push({ ...term, items, credits: items.reduce((a, i) => a + i.cr, 0), unmetAfter: blocking(res).map((r) => r.label) });
-      if (!items.length) break;
     }
     const done = !blocking(res).length;
+    placeMilestones(semesters, res, input, now);
     return { semesters, done, maxCr, interests, finalRows: res.rows, flags: res.rows.filter((r) => r.flag && !r.ok).map((r) => r.label) };
   }
 
@@ -744,5 +783,5 @@
     return pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k)).slice(0, limit);
   }
 
-  root.KHU = { GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
+  root.KHU = { regSoFar, GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
 })(typeof window !== 'undefined' ? window : globalThis);

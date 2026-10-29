@@ -311,3 +311,9 @@ table.wd td:nth-child(5) { white-space: nowrap !important; }
 .gy-cmp td:first-child { white-space: nowrap; }
 @media (max-width: 480px) { .gy-cmp td:first-child { white-space: normal; } .gy-cmp td, .gy-cmp th { font-size: 13px; } }
 .sim.gy-cmp td:nth-child(2), .sim.gy-cmp td:nth-child(3) { white-space: normal; }
+
+/* 계획표의 졸업 절차(0학점) 항목 */
+.road li.ms { list-style-type: '◆ '; }
+.road li.ms::marker { color: var(--crimson); }
+.mstag { display: inline-block; font-size: 11px; font-weight: 600; color: var(--crimson); border: 1px solid var(--crimson); border-radius: 4px; padding: 0 5px; margin: 0 2px; vertical-align: 1px; }
+.sim.dbl td:nth-child(4) { white-space: normal; min-width: 96px; }

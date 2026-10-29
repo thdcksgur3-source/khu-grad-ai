@@ -670,11 +670,21 @@ window.KHU_DATA = {
       "common": {
         "graduation_exam": false,
         "graduation_project": true,
-        "graduation_note": "졸업논문 수강신청 + 졸업프로젝트 통과 (2025 개정: 8학기 이상 등록 후 졸업논문 Pass)",
+        "graduation_note": "졸업프로젝트는 7학기 이상 등록하면 신청하고, 졸업논문은 졸업프로젝트 통과 후 8학기 이상 등록해 수강신청해서 Pass를 받아야 해요. 대체 인정은 학과 회의에서 정해요 (2026 세칙 제6조, 부칙상 이전 입학생에게도 적용).",
         "sw_requirement": {
           "credits": 6,
           "note": "빅데이터응용학과 입학생(편입생·순수외국인 제외)"
-        }
+        },
+        "graduation_exam_substitutes": [
+          "현장실습(장/단기) 또는 창업현장실습 학점 취득",
+          "한국연구재단 등재(후보)지·SCOPUS/SCI급 국제학술지 주저자 논문 게재",
+          "교내외 수상·공훈 또는 전공 관련 공인 경진대회 입상",
+          "스타트업·창업기업 설립 또는 핵심경영진으로 참여",
+          "특허 출원"
+        ],
+        "graduation_project_schedule": "지도교수 신청 3월·9월 → 팀 구성·주제 승인 4월·10월 → 수행·결과보고서·학과 심사 5~6월·11~12월",
+        "project_min_terms": 7,
+        "thesis_min_terms": 8
       }
     }
   },

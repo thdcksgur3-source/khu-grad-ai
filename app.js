@@ -172,11 +172,13 @@
       if (r.missing && r.missing.length) detail += `<div class="detail">${r.missing.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>`;
       if (r.choose && r.choose.done < r.choose.pick) detail += `<div class="sub">아래 중 ${r.choose.pick - r.choose.done}과목 더 선택: ${r.choose.options.map(esc).join(', ')}</div>`;
       if (r.groups && r.groups.length) detail += r.groups.map((gr) => `<div class="sub">${esc(gr.name)} ${gr.have}/${gr.need}학점 ${gr.have >= gr.need ? '충족' : `(−${gr.need - gr.have})`}${gr.unsure ? `, 그중 ${gr.unsure}학점은 세칙 목록 밖 과목이라 확인 필요` : ''}</div>`).join('');
+      if (r.cap) detail += `<div class="sub">${esc(r.cap.name)}은 ${r.cap.max}학점까지만 전공선택으로 인정돼요. 지금 ${r.cap.have}학점${r.cap.over ? `이라 <b class="short">${r.cap.over}학점은 일반선택으로</b> 세었어요` : `, ${r.cap.max - r.cap.have}학점 더 인정받을 수 있어요`}.</div>`;
       if (r.areaNote) detail += `<div class="sub">배분이수 영역 ${esc(r.areaNote)}</div>`;
       if (r.engCourses && r.engCourses.length) detail += `<div class="detail">${r.engCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.swCourses && r.swCourses.length) detail += `<div class="detail">${r.swCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.note) detail += `<div class="sub">${esc(r.note)}</div>`;
       if (r.subs && r.subs.length && !r.ok) detail += `<div class="sub">대체 가능: ${r.subs.map(esc).join(' / ')}</div>`;
+      if (r.schedule && !r.ok) detail += `<div class="sub">진행 일정: ${esc(r.schedule)}</div>`;
       const u = r.unit === '과목' ? '과목' : '';
       const nums = r.flag ? '<td class="num">—</td><td class="num">—</td>' : `<td class="num">${r.need}${u}</td><td class="num">${r.have}${u}${delta > 0 ? `<div class="sub">수강 중 +${delta}</div>` : ''}</td>`;
       return `<tr><td>${esc(r.label)}${detail}</td>${nums}<td class="st">${statusCell(r)}</td></tr>`;
@@ -304,7 +306,7 @@
   function chatkhuPrompt(res, plan) {
     const unmet = res.unmet.map((r) => `- ${r.label}: ${r.flag ? '확인 필요' : `${r.have}/${r.need}${r.unit === '과목' ? '과목' : '학점'}`}${r.missing && r.missing.length ? ` (미이수: ${r.missing.join(', ')})` : ''}`).join('\n') || '- 없음';
     const now = res.courses.filter((c) => c.ip).map((c) => c.t).join(', ');
-    const planTxt = (plan.semesters || []).map((s) => `- ${termName(s)}: ${s.items.map((i) => i.t).join(', ')}`).join('\n');
+    const planTxt = (plan.semesters || []).map((s) => `- ${termName(s)}: ${s.items.map((i) => (i.milestone ? `[졸업 절차] ${i.t}` : i.t)).join(', ')}`).join('\n');
     return `나는 경희대학교 ${state.gyeyeol ? `${state.gyeyeol}로 입학한 ${res.year}학번이고(${res.deptLabel} 진입 기준) ` : `${res.deptLabel} ${res.year}학번이고 `} ${res.track === 'multi' ? '다전공' : '단일전공'} 과정이야.
 이번 학기에 듣는 과목: ${now || '없음'}
 '경영대 졸업사정표'로 이번 학기를 마친 뒤 기준으로 점검한 결과는 아래와 같아.
@@ -355,8 +357,11 @@ ${planTxt || '- 남은 학기 없음'}
     if (blocking.length && totalShort === 0) headline = `${when} 졸업학점은 채우지만, 영역별로 부족한 요건이 있어 <em>${n}학기</em> 더 필요해요.`;
     const first = plan.semesters[0];
     const later = plan.semesters.slice(1);
-    const li = (i) => `<li class="${i.placeholder ? 'ph' : ''}">${esc(i.t)} <span class="why">${esc(i.cr)}학점, ${esc(i.why)}</span></li>`;
-    const flags = plan.flags.length ? `<p class="sub" style="margin-top:10px">학점과 별개로 챙길 것: ${plan.flags.map(esc).join(', ')}</p>` : '';
+    const li = (i) => (i.milestone
+      ? `<li class="ms">${esc(i.t)} <span class="mstag">졸업 절차</span> <span class="why">${esc(i.why)}</span></li>`
+      : `<li class="${i.placeholder ? 'ph' : ''}">${esc(i.t)} <span class="why">${esc(i.cr)}학점, ${esc(i.why)}</span></li>`);
+    const msN = plan.semesters.reduce((a, s) => a + s.items.filter((i) => i.milestone).length, 0);
+    const flags = plan.flags.length ? `<p class="sub" style="margin-top:10px">학점과 별개로 챙길 것: ${plan.flags.map(esc).join(', ')}${msN ? ' (언제 하면 되는지 계획에 \'졸업 절차\'로 표시했어요)' : ''}</p>` : '';
     return `<div class="road" aria-live="polite">
       <p class="headline">${headline}</p>
       <div class="stats"><span>이수 완료 <b>${doneCr}</b>학점</span><span>수강 중 <b>${ipCr}</b>학점</span><span>졸업 기준 <b>${proj.credits.need}</b>학점</span>${blocking.length ? `<span>남은 요건 <b>${blocking.length}</b>개</span>` : ''}</div>
@@ -473,13 +478,13 @@ ${planTxt || '- 남은 학기 없음'}
     </section>
 
     <section class="section">
-      <h3>다전공하면 몇 학점 더 들어야 할까</h3>
+      <h3>다전공하면 학점이 얼마나 달라질까</h3>
       <p class="lead">경영대 안에서 다전공하면 전공기초와 공통 전공필수를 같이 인정받아요. 1전공 요구학점도 줄어들어서, 실제로 늘어나는 부담은 생각보다 작을 수 있어요.</p>
-      <table class="sim"><thead><tr><th>제2전공</th><th>1전공 기준</th><th>2전공 진행</th><th>단일전공 대비 추가 부담</th></tr></thead><tbody>
+      <table class="sim dbl"><thead><tr><th>제2전공</th><th>1전공 기준</th><th>2전공 진행</th><th>남은 전공학점 (단일전공과 비교)</th></tr></thead><tbody>
       ${res.doubles.map((d) => `<tr><td><b>${esc(d.dept)}</b>${d.req2.length ? `<div class="sub">2전공 필수: ${d.req2.map(esc).join(', ')}</div>` : ''}${d.exact ? '' : '<div class="sub">세칙에 이 조합의 중복인정 표가 없어 일반 다전공 기준으로 추정했어요</div>'}</td>
         <td>${d.firstNeed}학점</td>
         <td>${d.secondCr} / ${d.secondNeed}학점<div class="bar"><span style="width:${Math.round((d.secondCr / d.secondNeed) * 100)}%"></span></div></td>
-        <td><span class="big">${d.extra > 0 ? `+${d.extra}` : d.extra}</span> 학점</td></tr>`).join('')}
+        <td>${d.extra > 0 ? `<span class="big">+${d.extra}</span>학점 더` : d.extra < 0 ? `<span class="big">${-d.extra}</span>학점 덜<div class="sub">1전공 기준이 줄어서 남은 전공학점이 오히려 적어요. 졸업 ${res.credits.need}학점은 그대로예요</div>` : '<span class="big">0</span>학점, 똑같아요'}</td></tr>`).join('')}
       </tbody></table>
       <div class="box" style="margin-top:16px"><h4>마이크로디그리</h4>
         <ul class="reclist">${res.mds.map((m) => `<li><span><b>${esc(m.name)}</b> <small>${esc(m.host)}</small><div class="sub">${m.done.length ? `이수: ${m.done.map(esc).join(', ')}` : '아직 이수한 과목 없음'}${m.remain ? `, 남은 과목: ${m.todo.map(esc).join(', ')}` : ''}</div></span><small>${m.remain ? `${m.remain}학점 남음` : '요건 충족'}</small></li>`).join('')}</ul>
@@ -564,6 +569,7 @@ ${planTxt || '- 남은 학기 없음'}
           : '과목을 찾지 못했어요. 진단표나 성적 표를 행 단위로 복사했는지 확인하세요.';
         if (!r.courses.length) msg.className = 'msg warn';
         state.sampleName = null;
+        if (r.courses.length && window.matchMedia('(max-width: 960px)').matches) setTimeout(() => $('#viewtabs').scrollIntoView({ behavior: 'smooth' }), 50);
       }
       render();
     }
