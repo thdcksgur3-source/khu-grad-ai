@@ -88,5 +88,28 @@ const pe = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single',
 const engHints = pe.semesters.flatMap((s) => s.items).filter((i) => i.eng);
 check(pe.done && engHints.length === 3 && engHints.every((i) => /영어강의/.test(i.why)), `신입생 계획: 전공과목 3개에 '영어강의 분반으로' 표시 (실제 ${engHints.length}개)`);
 
+console.log('[6] 경영회계계열(2026~) 진단표');
+const gyText = (deptField, year = 2026) => [
+  '2026-후기 졸업진단표 2026-10-27 18:02:30 1 of 1',
+  `학 번 20269999 성 명 홍길동 학 과 ${deptField} 학 년 1 등록횟수 2 학적상태 재학`,
+  `입 학 구 분 신입학 졸업기준학점(년도) ${year} 외국인여부 N 최종변동 2026/09/01 최종판정 졸업유예`,
+  '교양/기타/금학기수강학점 전공학점',
+  '01 GEC1102 인간의가치탐색 3 2026 / 1 11 MGMT1001 경영학원론 3 2026 / 1',
+  '01 GEC1104 세계와시민 3 2026 / 1 ACCT1001 회계원리 3 2026 / 1',
+].join('\n');
+const gd1 = K.parseDiagnosis(gyText('경영회계계열'), { now: NOW });
+check(gd1.gyeyeol === '경영회계계열' && gd1.dept === null && gd1.year === 2026, `학과 칸이 경영회계계열 → 계열로 인식, 학과는 비워 둠 (실제 ${gd1.gyeyeol}/${gd1.dept})`);
+check(gd1.courses.length >= 3, `계열 진단표에서도 과목을 읽음 (실제 ${gd1.courses.length}과목)`);
+const gd2 = K.parseDiagnosis(gyText('경영회계 계열'), { now: NOW });
+check(gd2.gyeyeol === '경영회계계열' && gd2.dept === null, '띄어 쓴 "경영회계 계열"도 인식');
+const gd3 = K.parseDiagnosis(gyText('회계학과', 2022), { now: NOW });
+check(gd3.gyeyeol === null && gd3.dept === '회계·세무학과', '학과 칸이 회계학과면 기존처럼 회계·세무학과');
+const gd4 = K.parseDiagnosis(gyText('경영학과', 2025), { now: NOW });
+check(gd4.gyeyeol === null && gd4.dept === '경영학과', '학과 칸이 경영학과면 기존처럼 경영학과');
+for (const d of K.GYEYEOL.depts) {
+  const r = K.audit({ year: 2026, dept: d, track: 'single', courses: gd1.courses, liberal: {}, now: NOW });
+  check(!r.error && r.rows.find((x) => x.label === '전공기초').have === 6, `계열 학생 수강 기록을 ${K.deptLabel(d, 2026)} 세칙으로 계산 (전공기초 6학점)`);
+}
+
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
 process.exit(fail ? 1 : 0);
