@@ -56,5 +56,25 @@ const grpOf = (res, t) => (res.courses.find((c) => K.norm(c.t) === K.norm(t)) ||
 check(grpOf(a19, '회사법') === '경영', `19학번 회사법 과목군: ${grpOf(a19, '회사법')} (기대: 경영)`);
 check(grpOf(a19, '회계정보애널리틱스') === '회계', `19학번 회계정보애널리틱스 과목군: ${grpOf(a19, '회계정보애널리틱스')} (기대: 회계)`);
 
+// 4) SW 졸업요건 과목
+console.log('[4] SW 과목 인정·계산');
+check(K.SW_LIST.filter((c) => c.sw === 'hum' && c.campus === '서울').length === 21 && K.SW_LIST.filter((c) => c.sw === 'biz').length === 9, `SW 과목 수: 서울 후마니타스 21 + 경영대 9 이어야 함 (실제 ${K.SW_LIST.length})`);
+const g1 = K.audit({ year: 2024, dept: '경영학과', track: 'single', courses: [{ t: '인공지능과라이프3.0', cr: 3 }], liberal: {}, now: NOW });
+check(g1.credits.libDist === 3 && g1.rows.find((x) => x.id === 'sw').have === 3, 'SW 배분이수 과목은 배분이수와 SW 모두 인정');
+check((g1.rows.find((x) => x.id === 'lib-dist').areas || []).includes('지능·정보·미래'), 'SW 배분이수 과목의 영역(지능·정보·미래)이 자동으로 잡힘');
+const swOf = (courses, extra = {}) => K.audit({ year: 2024, dept: '경영학과', track: 'single', courses, liberal: {}, now: NOW, ...extra });
+const swHave = (r) => r.rows.find((x) => x.id === 'sw').have;
+const a1 = swOf([{ t: '파이썬으로배우는소프트웨어코딩', cr: 3 }]);
+check(swHave(a1) === 3, `검색으로 넣은 SW 과목 3학점 인정 (실제 ${swHave(a1)})`);
+check(a1.credits.libFree === 3, `SW 자유이수 과목은 자유이수 교양에도 들어감 (실제 ${a1.credits.libFree})`);
+check(swHave(swOf([{ t: '네트워크기술을통한현재', no: 'GED1227', cr: 3, sw: 'mark' }])) === 3, '진단표 s 표시 과목(목록 밖 옛 과목) 인정');
+check(swHave(swOf([{ t: '새로운생명체:인공지능', no: 'GEE1953', cr: 3, sw: 'mark' }], { official: { sw: 3 } })) === 3, '진단표 공식 SW 학점과 같은 과목을 두 번 세지 않음');
+check(swHave(swOf([{ t: '새로운생명체:인공지능', no: 'GEE1953', cr: 3 }], { sw: 3 })) === 6, '목록에 없는 SW 학점 직접 입력은 더해짐');
+const p24 = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single', courses: [], liberal: {}, now: NOW }, { maxCr: 18 });
+const swPlanned = p24.semesters.flatMap((s) => s.items).filter((i) => /SW/.test(i.why) && !i.placeholder);
+check(swPlanned.length >= 2 && swPlanned.every((i) => K.isSw(i)), `신입생 계획에 실제 SW 과목 2개 이상 (실제 ${swPlanned.map((i) => i.t).join(', ')})`);
+const pB = K.planGraduation({ year: 2022, dept: '빅데이터응용학과', track: 'single', courses: [], liberal: {}, now: NOW }, { maxCr: 18 });
+check(pB.semesters.flatMap((s) => s.items).some((i) => i.no === 'BDAS1004' && /SW/.test(i.why)), '빅데이터 학생 계획: 빅데이터프로그래밍2가 SW 요건도 채움으로 표시');
+
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
 process.exit(fail ? 1 : 0);
