@@ -122,6 +122,25 @@
   </div>
 </main>
 
+<!-- ChatKHU 바로 묻기: 오른쪽 아래 떠 있는 버튼과 패널 -->
+<div class="ck-dock" id="ckDock">
+  <div class="ck-bubble" id="ckBubble" hidden>
+    <button type="button" class="ck-bubble-open" id="ckBubbleOpen">졸업 계획, <b>ChatKHU</b>에 바로 물어보세요</button>
+    <button type="button" class="ck-bubble-x" id="ckBubbleX" aria-label="안내 닫기">×</button>
+  </div>
+  <section class="ck-panel" id="ckPanel" role="dialog" aria-labelledby="ckTitle" hidden>
+    <header class="ck-head"><img src="assets/chatkhu.png" alt="ChatKHU" width="86" height="26"><h2 id="ckTitle">에 물어보기</h2><button type="button" class="ck-x" id="ckClose" aria-label="ChatKHU 패널 닫기">×</button></header>
+    <p class="ck-lead">내 진단 결과가 담긴 질문이에요. 직접 고치거나 아래 버튼으로 궁금한 점을 덧붙인 뒤 ChatKHU에 붙여넣으세요.</p>
+    <div class="ck-chips" id="ckChips" role="group" aria-label="질문 덧붙이기"></div>
+    <label class="sr-only" for="ckPrompt">ChatKHU에 보낼 질문 (수정 가능)</label>
+    <textarea id="ckPrompt" spellcheck="false"></textarea>
+    <p class="ck-note">이름·학번 같은 개인정보는 들어가지 않아요. 여기서 고친 내용은 사정표 아래 질문 칸에도 똑같이 반영돼요.</p>
+    <a class="btn ck-go" id="ckGo" href="https://chat.khu.ac.kr/" target="_blank" rel="noopener">질문 복사하고 ChatKHU 열기</a>
+    <p class="msg ck-msg" id="ckMsg" aria-live="polite"></p>
+  </section>
+  <button type="button" class="ck-fab" id="ckFab" aria-expanded="false" aria-controls="ckPanel"><img src="assets/chatkhu-icon.png" alt="" width="54" height="45"><span>ChatKHU에 묻기</span></button>
+</div>
+
 <script src="data.js"></script>
 <script src="engine.js"></script>
 <script src="app.js"></script>

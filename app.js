@@ -52,6 +52,7 @@
   // ChatKHU 질문: 사용자가 고친 내용은 화면이 다시 그려져도 유지한다 (다른 학생을 불러오면 초기화)
   let promptEdit = null; // { text, base }
   let promptBase = '';
+  const CHATKHU_URL = 'https://chat.khu.ac.kr/'; // ChatKHU 주소는 여기 한 곳에서만 바꾸면 된다
 
   /* ---------- 입력 렌더 ---------- */
   function renderInputs() {
@@ -335,6 +336,7 @@ ${planTxt || '- 남은 학기 없음'}
   }
 
   function renderResult() {
+    queueMicrotask(ckRefresh); // 화면을 다시 그린 뒤 열려 있는 ChatKHU 패널 질문도 맞춘다
     const input = { ...state, now: NOW };
     const res = K.audit(input);
     const out = $('#sheet');
@@ -454,7 +456,7 @@ ${planTxt || '- 남은 학기 없음'}
         return `<label class="sr-only" for="prompt">ChatKHU에 보낼 질문 (수정 가능)</label>
       <textarea id="prompt" spellcheck="false">${esc(promptEdit ? promptEdit.text : promptBase)}</textarea>
       <p class="msg" id="promptnote" aria-live="polite" style="margin:6px 0 0">${stale ? '진단 결과가 바뀌었어요. 고친 내용은 그대로 두었고, 새 결과를 넣으려면 기본 질문으로 되돌리세요.' : promptEdit ? '고친 내용은 결과가 바뀌어도 그대로 남아요.' : '이 칸을 눌러 바로 고칠 수 있어요.'}</p>
-      <div class="btnrow" style="margin-top:8px"><button class="btn" type="button" id="copy">질문 복사하기</button><button class="btn ghost" type="button" id="resetPrompt"${promptEdit ? '' : ' hidden'}>기본 질문으로 되돌리기</button><span class="msg" id="copied" aria-live="polite"></span></div>`;
+      <div class="btnrow" style="margin-top:8px"><button class="btn" type="button" id="copy">질문 복사하기</button><a class="btn ghost ck-open" href="${CHATKHU_URL}" target="_blank" rel="noopener" data-ck-copy="prompt">복사하고 ChatKHU 열기 ↗</a><button class="btn ghost" type="button" id="resetPrompt"${promptEdit ? '' : ' hidden'}>기본 질문으로 되돌리기</button><span class="msg" id="copied" aria-live="polite"></span></div>`;
       })()}
     </section>
 
@@ -658,6 +660,7 @@ ${planTxt || '- 남은 학기 없음'}
       $('#resetPrompt').hidden = !promptEdit;
       $('#copied').textContent = '';
       $('#promptnote').textContent = promptEdit ? '고친 내용은 결과가 바뀌어도 그대로 남아요.' : '이 칸을 눌러 바로 고칠 수 있어요.';
+      if (!$('#ckPanel').hidden) $('#ckPrompt').value = v;
     });
     $('#sheet').addEventListener('click', (e) => {
       const sb = e.target.closest('[data-sample2]');
@@ -681,6 +684,7 @@ ${planTxt || '- 남은 학기 없음'}
       if (e.target.id === 'resetPrompt') {
         promptEdit = null;
         const ta = $('#prompt'); ta.value = promptBase;
+        if (!$('#ckPanel').hidden) $('#ckPrompt').value = promptBase;
         e.target.hidden = true;
         $('#promptnote').textContent = '기본 질문으로 되돌렸어요.'; $('#copied').textContent = '';
         ta.focus();
@@ -859,6 +863,100 @@ ${planTxt || '- 남은 학기 없음'}
     }
   }
 
+  /* ---------- ChatKHU 바로 묻기 (오른쪽 아래 버튼·패널) ---------- */
+  // 지금 결과로 만든 기본 질문. 고친 질문(promptEdit)이 있으면 그걸 쓴다.
+  function ckBase() {
+    if (!state.courses.length && !state.official) return '';
+    const input = { ...state, now: NOW };
+    const res = K.audit(input);
+    if (res.error) return '';
+    promptBase = chatkhuPrompt(res, K.planGraduation(input, { maxCr: state.maxCr }));
+    return promptBase;
+  }
+  function ckText() { const base = ckBase(); return promptEdit ? promptEdit.text : base; }
+  function ckRefresh() {
+    const panel = $('#ckPanel');
+    if (!panel || panel.hidden) return;
+    const ta = $('#ckPrompt');
+    if (document.activeElement === ta) return; // 입력 중에는 건드리지 않는다
+    ta.value = ckText();
+    ta.placeholder = '진단표를 올리거나 예시 학생을 고르면 내 결과가 담긴 질문이 만들어져요. 지금은 ChatKHU만 열 수 있어요.';
+  }
+  const CK_CHIPS = [
+    ['다음 학기 계획 다듬기', () => '\n\n[추가 질문] 위 수강 계획을 내 진로(예: 회계사, 금융권, 데이터 직무)에 맞게 다듬어 줘. 학기별 부담이 고르게 되도록 순서도 제안해 줘.'],
+    ['SW 과목 고르기', () => '\n\n[추가 질문] SW 졸업요건(6학점)을 채우려면 어떤 과목이 나에게 맞을지, 전공과 함께 인정되는 과목 위주로 난이도와 함께 비교해 줘.'],
+    ['학점포기 상담', () => {
+      if (!state.withdraw.length) return '\n\n[추가 질문] 학점포기를 고민 중이야. 졸업요건을 해치지 않으면서 포기와 재수강 중 무엇이 나은지 판단하는 기준을 알려 줘.';
+      const r = K.withdrawSim({ ...state, now: NOW }, state.withdraw, { maxCr: state.maxCr });
+      const brk = r.broken.length ? ` 새로 부족해지는 요건: ${r.broken.map((b) => b.label).join(', ')}.` : '';
+      return `\n\n[추가 질문] 학점포기를 고민 중인 과목: ${r.removed.join(', ')} (${r.removedCr}학점). 졸업사정표 계산으로는 포기하면 졸업까지 남은 학점이 ${Math.max(0, r.before.short)} → ${Math.max(0, r.after.short)}학점, 남은 학기가 ${r.before.terms} → ${r.after.terms}학기가 돼.${brk} 재수강과 비교해 어떤 선택이 나을지, 국가장학금·성적경고 같은 위험도 함께 따져 줘.`;
+    }],
+    ['규정 다시 확인', () => '\n\n[추가 질문] 위 결과에서 학과 확인이 필요한 규정(과목군 인정, 신설 과목, 졸업시험 대체 등)을 시행세칙 기준으로 쉽게 설명하고, 학과 사무실에 물어볼 질문 목록으로 정리해 줘.'],
+  ];
+  function ckSync(v) {
+    promptEdit = v === promptBase ? null : { text: v, base: promptBase };
+    const main = $('#prompt');
+    if (main) {
+      main.value = v;
+      const rb = $('#resetPrompt'); if (rb) rb.hidden = !promptEdit;
+      const note = $('#promptnote'); if (note) note.textContent = promptEdit ? '고친 내용은 결과가 바뀌어도 그대로 남아요.' : '이 칸을 눌러 바로 고칠 수 있어요.';
+    }
+  }
+  function ckCopy(text) {
+    if (!text) return false;
+    let ok = false;
+    try { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).catch(() => {}); ok = true; } } catch (_) {}
+    try {
+      const t = document.createElement('textarea');
+      t.value = text; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0'; t.style.top = '0';
+      document.body.appendChild(t); t.select(); t.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy') || ok; t.remove();
+    } catch (_) {}
+    return ok;
+  }
+  function ckOpen(open) {
+    const panel = $('#ckPanel'); const fab = $('#ckFab');
+    panel.hidden = !open; fab.setAttribute('aria-expanded', String(open));
+    $('#ckDock').classList.toggle('open', open);
+    if (open) {
+      $('#ckBubble').hidden = true;
+      try { sessionStorage.setItem('ckBubbleSeen', '1'); } catch (_) {}
+      $('#ckMsg').textContent = '';
+      ckRefresh();
+      const ta = $('#ckPrompt'); ta.focus({ preventScroll: true }); try { ta.setSelectionRange(0, 0); } catch (_) {} ta.scrollTop = 0;
+    } else fab.focus();
+  }
+  function bindChatKhu() {
+    $('#ckGo').href = CHATKHU_URL;
+    $('#ckChips').innerHTML = CK_CHIPS.map(([label], i) => `<button type="button" class="ck-chip" data-ck="${i}">+ ${esc(label)}</button>`).join('');
+    $('#ckFab').addEventListener('click', () => ckOpen($('#ckPanel').hidden));
+    $('#ckClose').addEventListener('click', () => ckOpen(false));
+    $('#ckBubbleOpen').addEventListener('click', () => ckOpen(true));
+    $('#ckBubbleX').addEventListener('click', () => { $('#ckBubble').hidden = true; try { sessionStorage.setItem('ckBubbleSeen', '1'); } catch (_) {} });
+    $('#ckPanel').addEventListener('keydown', (e) => { if (e.key === 'Escape') ckOpen(false); });
+    $('#ckChips').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ck]'); if (!b) return;
+      const ta = $('#ckPrompt');
+      if (!ta.value) ta.value = ckText();
+      ta.value += CK_CHIPS[Number(b.dataset.ck)][1]();
+      ckSync(ta.value);
+      ta.focus(); ta.scrollTop = ta.scrollHeight;
+    });
+    $('#ckPrompt').addEventListener('input', (e) => ckSync(e.target.value));
+    // 링크로 새 탭을 여는 동시에 질문을 복사한다 (기본 동작은 막지 않는다: 팝업 차단을 피하려고)
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('#ckGo, [data-ck-copy]'); if (!a) return;
+      const src = a.id === 'ckGo' ? $('#ckPrompt') : $('#prompt');
+      const text = src ? src.value : '';
+      const ok = ckCopy(text);
+      const msg = a.id === 'ckGo' ? $('#ckMsg') : $('#copied');
+      if (msg) msg.textContent = !text ? 'ChatKHU를 새 탭에서 열었어요.' : ok ? '질문을 복사했어요. 새 탭의 ChatKHU 입력창에 붙여넣으세요 (휴대폰은 길게 눌러 붙여넣기).' : '자동 복사가 안 됐어요. 질문을 길게 눌러 직접 복사해 주세요.';
+    });
+    let seen = false; try { seen = sessionStorage.getItem('ckBubbleSeen') === '1'; } catch (_) {}
+    if (!seen) setTimeout(() => { if ($('#ckPanel').hidden) $('#ckBubble').hidden = false; }, 1500);
+  }
+
   bind();
+  bindChatKhu();
   render();
 })();
