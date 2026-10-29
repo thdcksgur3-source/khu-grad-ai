@@ -20,6 +20,55 @@
     if (!prev || Object.keys(c.k).length > Object.keys(prev.k).length) byTitle.set(k, c);
   });
   const lookup = (c) => (c.no && byNo.get(c.no)) || byTitle.get(norm(c.t)) || null;
+  /* ===== SW 졸업요건 과목 =====
+     출처: 2026 인포21 교육과정의 '후마니타스칼리지교육과정(서울) 자유이수교과 SW' 영역(hum) + 경영대학 개설 과목(biz).
+     진단표에서 과목명 앞에 's'가 붙은 과목도 SW 과목으로 본다. */
+  const SW_LIST = D.courses.filter((c) => c.sw);
+  const isSw = (c) => !!(c.sw || ((lookup(c) || {}).sw));
+  const SW_AI = /인공지능|머신러닝|딥러닝|데이터|파이썬/;
+  function swStatus(courses, input, need) {
+    const counted = courses.filter((c) => isSw(c) && !c.plan);
+    const planned = courses.filter((c) => isSw(c) && c.plan);
+    const fromCourses = sum(counted);
+    const official = input.official && input.official.sw != null ? Number(input.official.sw) : 0;
+    const manual = Number(input.sw) || 0;
+    // 진단표 공식 SW 학점과 과목 목록에서 센 학점 중 큰 값 + 목록에 없는 과목으로 직접 입력한 학점 + 계획에 넣은 과목
+    const have = Math.max(official, fromCourses) + manual + sum(planned);
+    return { need, have, official, manual, fromCourses, courses: counted.map((c) => ({ t: c.t, cr: c.cr, ip: !!c.ip, no: c.no })) };
+  }
+  // 아직 안 들은 SW 과목을 추천 순서대로: 학과 맞춤(빅데이터 전공과목) → 자유이수가 부족하면 함께 채움 → 관심 분야 → 학수번호
+  function swOptions({ dept, year, interests = [], takenNorms, freeShort = 0, majorShort = 0, distShort = 0, areas = [] }) {
+    const key = ruleKey(dept);
+    const ai = interests.includes('AI·데이터');
+    return SW_LIST.map((c) => {
+      const taken = takenNorms.has(norm(c.t));
+      const reasons = [];
+      let score = 50;
+      const kind = c.sw === 'biz' ? (c.k[key] || (key === '회계·세무학과' && c.k['회계학과']) || (key === '빅데이터응용학과' && '전공선택') || null) : null;
+      const own = !!kind;
+      if (c.sw === 'biz') {
+        if (own) {
+          reasons.push(`${deptLabel(dept, year || 2025)} ${kind}이면서 SW로 인정돼요`);
+          score = kind === '전공필수' ? 0 : majorShort > 0 ? 10 : 40;
+          if (majorShort > 0 && kind !== '전공필수') reasons.push('부족한 전공 학점도 함께 채워요');
+        } else { reasons.push('경영대학 개설 SW 과목 (내 학과 전공으로는 인정되지 않을 수 있어요)'); score = 90; }
+        if (c.a && interests.includes(c.a)) { reasons.push(`관심 분야(${c.a})와 맞아요`); score -= 5; }
+      } else if (c.campus === '국제') {
+        reasons.push('국제캠퍼스 개설 SW 과목이라 추천하지 않아요 (이수했다면 SW로 인정)'); score = 95;
+      } else if (c.cat === '배분이수') {
+        const newArea = year >= 2024 && c.area && !areas.includes(c.area);
+        reasons.push(`배분이수(${c.area}) 교양${distShort > 0 ? ' 부족분도 함께 채워요' : '으로 들어가요'}`);
+        if (distShort > 0) score -= 20;
+        if (newArea && distShort > 0) { reasons.push('아직 안 들은 배분 영역이에요'); score -= 5; }
+        if (ai && SW_AI.test(c.t)) { reasons.push('관심 분야(AI·데이터)와 맞아요'); score -= 5; }
+      } else {
+        reasons.push(freeShort > 0 ? '자유이수 교양 부족분도 함께 채워요' : '자유이수 교양으로 들어가요');
+        if (freeShort > 0) score -= 20;
+        if (ai && SW_AI.test(c.t)) { reasons.push('관심 분야(AI·데이터)와 맞아요'); score -= 5; }
+      }
+      return { t: c.t, no: c.no, cr: c.cr, term: c.term, src: c.sw, cat: c.cat, area: c.area, campus: c.campus, own, kind, taken, reasons, score };
+    }).sort((a, b) => a.score - b.score || a.no.localeCompare(b.no));
+  }
   const prefixOf = (c) => ((c.no || (lookup(c) || {}).no || '').match(/^[A-Z]+/) || [''])[0];
 
   const ruleKey = (dept) => (dept === '회계학과' ? '회계·세무학과' : dept);
@@ -64,8 +113,9 @@
     if (inList(g.basic_courses, c.t)) return { kind: '전공기초' };
     if (inList(g.required_courses, c.t)) return { kind: '전공필수' };
     if (g.required_choose && inList(g.required_choose.from, c.t)) return { kind: '전공필수택' };
-    if (['배분이수', '자유이수', '일반선택', '교양필수'].includes(c.cat)) return { kind: c.cat };
     const info = lookup(c);
+    const cat0 = c.cat || (info && info.cat);
+    if (['배분이수', '자유이수', '일반선택', '교양필수'].includes(cat0)) return { kind: cat0 };
     const p = prefixOf(c);
     const biz = (info && Object.keys(info.k).length > 0) || ['MGMT', 'ACCT', 'BDAS'].includes(p);
     const inOwn = info && (info.k[key] || (key === '회계·세무학과' && info.k['회계학과']));
@@ -184,7 +234,9 @@
     const freeCr = sum(courses.filter((c) => c.kind === '자유이수')) + (Number(lib.free) || 0);
     const libTotal = reqCr + distCr + freeCr;
     const areasNeed = year >= 2024 ? 3 : 0;
-    const areasHave = (lib.areas || []).length;
+    const areaSet = new Set(lib.areas || []);
+    courses.filter((c) => c.kind === '배분이수').forEach((c) => { const a = c.area || (lookup(c) || {}).area; if (a) areaSet.add(a); });
+    const areasHave = areaSet.size;
 
     /* --- 총 학점 --- */
     const generalCr = sum(courses.filter((c) => c.kind === '일반선택')) + (Number(lib.general) || 0);
@@ -195,7 +247,7 @@
     const row = (id, area, label, need, have, extra = {}) => rows.push({ id, area, label, need, have, ok: have >= need, short: Math.max(0, need - have), ...extra });
     row('total', '졸업', '총 이수학점', g.graduation_total, allCr);
     row('lib-req', '교양', '필수교과', LIB_REQ.length, reqStatus.filter((r) => r.ok).length, { unit: '과목', missing: reqStatus.filter((r) => !r.ok).map((r) => r.t) });
-    row('lib-dist', '교양', `배분이수${areasNeed ? ` (5개 영역 중 ${areasNeed}개 영역)` : ''}`, L.distribution, distCr, areasNeed ? { areaNote: `${areasHave}/${areasNeed}개 영역`, ok: distCr >= L.distribution && areasHave >= areasNeed } : {});
+    row('lib-dist', '교양', `배분이수${areasNeed ? ` (5개 영역 중 ${areasNeed}개 영역)` : ''}`, L.distribution, distCr, areasNeed ? { areaNote: `${areasHave}/${areasNeed}개 영역`, areas: [...areaSet], ok: distCr >= L.distribution && areasHave >= areasNeed } : {});
     row('lib-free', '교양', '자유이수', L.free, freeCr);
     const libMin = L.min_total - (lib.engExempt ? 2 : 0);
     row('lib-total', '교양', '교양 합계', libMin, libTotal, lib.engExempt ? { note: '대학영어 면제 2학점을 뺀 기준 — 면제 학점은 총학점에 들어가지 않아요' } : {});
@@ -207,7 +259,8 @@
 
     // 기타 요건
     const sw = common.sw_requirement;
-    if (sw) row('sw', '기타', 'SW 교과목', sw.credits, Number(input.sw) || 0, { unit: '학점', note: sw.note });
+    const swInfo = sw ? swStatus(courses, input, sw.credits) : null;
+    if (sw) row('sw', '기타', 'SW 교과목', sw.credits, swInfo.have, { unit: '학점', note: sw.note, swCourses: swInfo.courses });
     const examLabel = common.graduation_exam ? '졸업시험 통과 또는 대체' : '졸업프로젝트 통과';
     rows.push({ id: 'exam', area: '기타', label: examLabel, ok: !!input.examDone, flag: true, subs: common.graduation_exam_substitutes || [], note: common.graduation_note || common.graduation_exam_note });
     rows.push({ id: 'thesis', area: '기타', label: `${thesis} 수강신청`, ok: !!input.thesisDone || courses.some((c) => /졸업논문/.test(c.t)), flag: true });
@@ -276,6 +329,7 @@
       year, dept, deptLabel: deptLabel(dept, year), track: input.track, g, rows, unmet, courses,
       credits: { all: allCr, lib: libTotal, libReq: reqCr, libDist: distCr, libFree: freeCr, basic: basicCr, required: requiredCr, elective: sum(electives) + otherCounted, other: otherUncounted, general: generalCr, need: g.graduation_total },
       tips, doubles, mds, ranked, interests, recommend, mustTake, nextTerm: nt,
+      sw: swInfo ? { ...swInfo, options: swOptions({ dept, year, interests, takenNorms: new Set(courses.map((c) => norm(c.t))), freeShort: Math.max(0, L.free - freeCr), majorShort: Math.max(0, electiveNeed - electiveCr, totalNeed - majorTotal), distShort: Math.max(0, L.distribution - distCr), areas: [...areaSet] }) } : null,
       retroCandidates: retroCands.map((c) => c.t), retroApplied: !!input.retro2027 && retroCands.length > 0,
       needsCheck: [...(D.needsCheck[key] || []), ...(D.needsCheck._all || [])].filter((n) => n.years === 'all' || n.years.includes(year)).map((n) => n.text),
     };
@@ -341,6 +395,7 @@
   const DEPT_NAMES = ['빅데이터응용학과', '회계·세무학과', '회계ㆍ세무학과', '회계세무학과', '회계학과', '경영학과'];
   const isDiagnosis = (text) => /졸\s*업\s*진\s*단\s*표|졸업기준학점/.test(text || '');
   const cleanTitle = (t) => t.replace(/^[es#@*$%G]+(?=[가-힣A-Z0-9])/, '').replace(/\s+/g, ' ').trim();
+  const swMarked = (t) => { const m = (t || '').trim().match(/^([es#@*$%G]+)(?=[가-힣A-Z0-9])/); return !!(m && m[1].includes('s')); };
 
   function parseDiagnosis(text, opts = {}) {
     const cur = currentTerm(opts.now || new Date());
@@ -373,7 +428,7 @@
           const known = byNo.get(code);
           const n = cm[1];
           const cat = n === '01' ? '교양필수' : DIAG_NUM[n] || null;
-          courses.push({ t: known ? known.t : cleanTitle(cm[3]), no: code, cr: Number(cm[4]), cat, ip: true, fromCur: true });
+          courses.push({ t: known ? known.t : cleanTitle(cm[3]), no: code, cr: Number(cm[4]), cat, ip: true, fromCur: true, ...(swMarked(cm[3]) ? { sw: 'mark' } : {}) });
         }
         return;
       }
@@ -400,7 +455,7 @@
         }
         const known = byNo.get(code);
         const ip = (inCur && (matches.length === 1 || idx === 0)) || (cur && Number(yy) === cur.year && Number(ss) === cur.sem);
-        courses.push({ t: known ? known.t : title, no: code, cr: Number(cr), cat, ...(ip ? { ip: true } : {}) });
+        courses.push({ t: known ? known.t : title, no: code, cr: Number(cr), cat, ...(ip ? { ip: true } : {}), ...(swMarked(title0) ? { sw: 'mark' } : {}) });
       });
     });
 
@@ -418,8 +473,9 @@
     const merged = [];
     courses.forEach((c) => {
       const ex = merged.find((x) => x.no === c.no || norm(x.t) === norm(c.t));
-      if (ex) { if (c.ip) ex.ip = true; } else { const { fromCur, ...rest } = c; merged.push(rest); }
+      if (ex) { if (c.ip) ex.ip = true; if (c.sw) ex.sw = ex.sw || c.sw; } else { const { fromCur, ...rest } = c; merged.push(rest); }
     });
+    if (sw != null) official.sw = sw;
     return { kind: 'diagnosis', year, dept, courses: merged, official, sw, skipped: [] };
   }
 
@@ -464,11 +520,14 @@
       const add = (c, why) => {
         if (budget < c.cr || taken().has(norm(c.t))) return false;
         const unsure = !c.placeholder && groupUnsure(c, input.dept, year);
-        items.push({ ...c, why: unsure ? `${why}, 과목군 인정 확인 필요` : why, unsure }); takenSet.add(norm(c.t)); budget -= c.cr; return true;
+        const swAlso = !c.placeholder && !/SW/.test(why) && isSw(c);
+        const why2 = (unsure ? `${why}, 과목군 인정 확인 필요` : why) + (swAlso ? ' + SW 졸업요건' : '');
+        items.push({ ...c, ...(swAlso ? { sw: (lookup(c) || {}).sw || true } : {}), why: why2, unsure }); takenSet.add(norm(c.t)); budget -= c.cr; return true;
       };
       const pool = (filter) => uniq(D.courses.filter((c) => c.cr > 0 && !takenSet.has(norm(c.t)) && ownCourse(c) && offered(c) && filter(c)))
-        .map((c) => ({ c, u: unsureOf(c) ? 1 : 0, r: rank(c) }))
-        .sort((a, b) => a.u - b.u || a.r - b.r || a.c.no.localeCompare(b.c.no)).map((x) => x.c);
+        .map((c) => ({ c, u: unsureOf(c) ? 1 : 0, s: c.sw && swLeft() > 0 ? 0 : 1, r: rank(c) }))
+        .sort((a, b) => a.u - b.u || a.s - b.s || a.r - b.r || a.c.no.localeCompare(b.c.no)).map((x) => x.c);
+      const swLeft = () => { const r0 = row('sw'); return (r0 ? r0.short : 0) - items.filter((i) => i.sw).reduce((a, i) => a + i.cr, 0); };
       const row = (id) => res.rows.find((r) => r.id === id);
 
       // ① 빠진 전공기초·전공필수
@@ -491,13 +550,38 @@
         .forEach((c) => { if (majShort > 0 && add({ t: c.t, no: c.no, cr: c.cr }, '전공선택')) majShort -= c.cr; });
       // ⑥ 교양 배분·자유, SW
       let dShort = row('lib-dist').short;
-      const areaShort = res.year >= 2024 ? Math.max(0, 3 - ((base.liberal.areas || []).length + extraAreas)) : 0;
-      let nDist = Math.max(Math.ceil(dShort / 3), areaShort);
-      while (nDist > 0 && budget >= 3) { ph += 1; add({ t: `배분이수 교양 ${ph}`, cr: 3, cat: '배분이수', placeholder: true }, areaShort ? '배분이수 (아직 안 들은 영역)' : '배분이수'); if (areaShort) extraAreas += 1; nDist -= 1; }
+      const haveAreas = new Set(row('lib-dist').areas || base.liberal.areas || []);
+      let areaShort = res.year >= 2024 ? Math.max(0, 3 - haveAreas.size - extraAreas) : 0;
+      // SW 배분이수 과목은 SW 요건과 배분이수(영역)를 함께 채운다. 새 영역을 먼저.
+      if (swLeft() > 0 && (dShort > 0 || areaShort > 0)) {
+        const opts = swOptions({ dept: input.dept, year, interests, takenNorms: takenSet, distShort: Math.max(dShort, 1), areas: [...haveAreas] })
+          .filter((o) => !o.taken && o.src === 'hum' && o.campus === '서울' && o.cat === '배분이수' && offered(o))
+          .sort((a, b) => (res.year >= 2024 ? (haveAreas.has(a.area) ? 1 : 0) - (haveAreas.has(b.area) ? 1 : 0) : 0) || a.score - b.score);
+        for (const o of opts) {
+          if (swLeft() <= 0 || (dShort <= 0 && areaShort <= 0) || budget < o.cr) break;
+          if (res.year >= 2024 && dShort <= 0 && haveAreas.has(o.area)) continue;
+          const fresh = res.year >= 2024 && !haveAreas.has(o.area);
+          if (add({ t: o.t, no: o.no, cr: o.cr, cat: '배분이수', sw: 'hum' }, `SW 졸업요건 + 배분이수(${o.area})`)) {
+            dShort -= o.cr; if (fresh) { areaShort -= 1; haveAreas.add(o.area); }
+          }
+        }
+      }
+      let nDist = Math.max(Math.ceil(Math.max(0, dShort) / 3), Math.max(0, areaShort));
+      while (nDist > 0 && budget >= 3) { ph += 1; add({ t: `배분이수 교양 ${ph}`, cr: 3, cat: '배분이수', placeholder: true }, areaShort > 0 ? '배분이수 (아직 안 들은 영역)' : '배분이수'); if (areaShort > 0) { extraAreas += 1; areaShort -= 1; } nDist -= 1; }
       let fShort = row('lib-free').short;
-      while (fShort > 0 && budget >= 3) { ph += 1; add({ t: `자유이수 교양 ${ph}`, cr: 3, cat: '자유이수', placeholder: true }, '자유이수'); fShort -= 3; }
       const swRow = row('sw');
-      let swShort = swRow ? swRow.short : 0;
+      let swShort = swLeft();
+      // SW 자유이수 과목은 SW 요건과 자유이수 교양을 함께 채운다. 개설 학기와 추천 순서(swOptions)를 따른다.
+      const swPick = () => swOptions({ dept: input.dept, year, interests, takenNorms: takenSet, freeShort: fShort, majorShort: Math.max(0, majShort) })
+        .filter((o) => !o.taken && ((o.src === 'hum' && o.campus === '서울' && o.cat === '자유이수') || o.own) && offered(o));
+      for (const o of swPick()) {
+        if (swShort <= 0 || budget < o.cr) break;
+        const both = fShort > 0 && o.src === 'hum' && o.cat === '자유이수';
+        if (add({ t: o.t, no: o.no, cr: o.cr, cat: o.src === 'hum' ? '자유이수' : null, sw: o.src }, both ? 'SW 졸업요건 + 자유이수' : o.own ? `SW 졸업요건 + ${o.kind}` : 'SW 졸업요건')) {
+          swShort -= o.cr; if (both) fShort -= o.cr;
+        }
+      }
+      while (fShort > 0 && budget >= 3) { ph += 1; add({ t: `자유이수 교양 ${ph}`, cr: 3, cat: '자유이수', placeholder: true }, '자유이수'); fShort -= 3; }
       while (swShort > 0 && budget >= 3) { ph += 1; if (add({ t: `SW 교과목 ${ph}`, cr: 3, cat: '일반선택', placeholder: true, sw: true }, 'SW 졸업요건')) { swShort -= 3; } else break; }
       // ⑦ 총 학점 부족분: 관심 분야 전공선택 → 자유 선택
       const planned = items.reduce((a, i) => a + i.cr, 0);
@@ -506,8 +590,7 @@
         .forEach((c) => { if (totShort > 0 && budget >= c.cr && totShort >= 3 && add({ t: c.t, no: c.no, cr: c.cr }, '관심 분야 (졸업학점 채우기)')) totShort -= c.cr; });
       while (totShort > 0 && budget >= 3) { ph += 1; add({ t: `자유 선택 ${ph}`, cr: 3, cat: '일반선택', placeholder: true }, '졸업학점 채우기 (교양·일반선택 아무거나)'); totShort -= 3; }
 
-      courses = courses.concat(items.map((i) => ({ t: i.t, no: i.no || null, cr: i.cr, cat: i.cat || null, plan: true })));
-      sw += items.filter((i) => i.sw).reduce((a, i) => a + i.cr, 0);
+      courses = courses.concat(items.map((i) => ({ t: i.t, no: i.no || null, cr: i.cr, cat: i.cat || null, plan: true, ...(i.sw ? { sw: i.sw } : {}) })));
       res = run();
       semesters.push({ ...term, items, credits: items.reduce((a, i) => a + i.cr, 0), unmetAfter: blocking(res).map((r) => r.label) });
       if (!items.length) break;
@@ -528,5 +611,5 @@
     return pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k)).slice(0, limit);
   }
 
-  root.KHU = { audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
+  root.KHU = { swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
 })(typeof window !== 'undefined' ? window : globalThis);

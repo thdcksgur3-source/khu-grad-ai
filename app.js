@@ -11,21 +11,21 @@
   const SAMPLES = {
     acct: {
       name: '4학년 2학기 재학 중',
-      year: 2021, dept: '회계·세무학과', track: 'single', sw: 6, examDone: false, thesisDone: false,
+      year: 2021, dept: '회계·세무학과', track: 'single', sw: 3, examDone: false, thesisDone: false,
       courses: list('회계원리,경영통계학,경제학원론,책임경영,관리회계1,세무회계1,재무회계1,재무관리,마케팅원론,경영정보시스템,세법총론,관리회계2,고급회계,회계감사,세무회계2,회사법,유가증권법,재무제표분석,투자론,경영과학,소비자행동론,인간의가치탐색,세계와시민,빅뱅에서문명까지,성찰과표현,대학영어')
         .concat(ipList('재무회계2,조직행동론,주제연구,회계이론,금융파생상품론')),
       liberal: { dist: 12, free: 3, general: 6, areas: [] },
     },
     mgmt: {
       name: '3학년 2학기 재학 중',
-      year: 2024, dept: '경영학과', track: 'single', sw: 3, examDone: false, thesisDone: false,
+      year: 2024, dept: '경영학과', track: 'single', sw: 0, examDone: false, thesisDone: false,
       courses: list('경영통계학,경영학원론,책임경영,회계원리,마케팅원론,재무관리,조직행동론,경영정보시스템,소비자행동론,마케팅조사론,디지털마케팅,통계기반데이터분석,경영커뮤니케이션,인간의가치탐색,세계와시민,성찰과표현,대학영어')
         .concat(ipList('생산운영관리,관리회계1,마케팅전략,빅뱅에서문명까지,피플애널리틱스')),
       liberal: { dist: 6, free: 3, general: 12, areas: ['상징·문화·소통', '사회·공동체·평화'] },
     },
     bdas: {
       name: '4학년 2학기 재학 중',
-      year: 2022, dept: '빅데이터응용학과', track: 'single', sw: 6, examDone: false, thesisDone: false,
+      year: 2022, dept: '빅데이터응용학과', track: 'single', sw: 0, examDone: false, thesisDone: false,
       courses: list('경영통계학,경제학원론,회계원리,책임경영,빅데이터수학,빅데이터프로그래밍1,빅데이터통계학,마케팅원론,재무관리,조직행동론,빅데이터프로그래밍2,빅데이터세미나,머신러닝기초및응용,빅데이터개론,투자론,비즈니스애널리틱스,인간의가치탐색,세계와시민,빅뱅에서문명까지,성찰과표현,주제연구,대학영어')
         .concat(ipList('DB기초및응용,소셜네트워크과학,딥러닝기초및응용,빅데이터알고리즘')),
       liberal: { dist: 12, free: 3, general: 15, areas: [] },
@@ -90,7 +90,7 @@
     const sorted = [...items].sort((a, b) => (b.ip ? 1 : 0) - (a.ip ? 1 : 0));
     ul.innerHTML = sorted.map((c) => `<li>
       <div>${esc(c.t)} <span class="meta">${esc(c.cr)}학점${c.grp && c.kind === '전공선택' ? `, ${esc(c.grp)}과목군${c.unsure ? ' (세칙 목록 밖, 확인 필요)' : ''}` : ''}</span></div>
-      <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}</span>
+      <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}${K.isSw(c) ? '<b class="swtag" title="SW 졸업요건 인정 과목">SW</b>' : ''}</span>
       <button class="ipbtn" type="button" data-ip="${esc(c.t)}" aria-pressed="${!!c.ip}" title="이번 학기 수강 중이면 눌러서 표시">${c.ip ? '수강 중' : '이수'}</button>
       <button class="rm" data-rm="${esc(c.t)}" aria-label="${esc(c.t)} 빼기">×</button></li>`).join('');
   }
@@ -134,6 +134,7 @@
       if (r.choose && r.choose.done < r.choose.pick) detail += `<div class="sub">아래 중 ${r.choose.pick - r.choose.done}과목 더 선택: ${r.choose.options.map(esc).join(', ')}</div>`;
       if (r.groups && r.groups.length) detail += r.groups.map((gr) => `<div class="sub">${esc(gr.name)} ${gr.have}/${gr.need}학점 ${gr.have >= gr.need ? '충족' : `(−${gr.need - gr.have})`}${gr.unsure ? `, 그중 ${gr.unsure}학점은 세칙 목록 밖 과목이라 확인 필요` : ''}</div>`).join('');
       if (r.areaNote) detail += `<div class="sub">배분이수 영역 ${esc(r.areaNote)}</div>`;
+      if (r.swCourses && r.swCourses.length) detail += `<div class="detail">${r.swCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.note) detail += `<div class="sub">${esc(r.note)}</div>`;
       if (r.subs && r.subs.length && !r.ok) detail += `<div class="sub">대체 가능: ${r.subs.map(esc).join(' / ')}</div>`;
       const u = r.unit === '과목' ? '과목' : '';
@@ -143,6 +144,38 @@
   }
 
   const termName = (t) => `${t.year}학년도 ${t.sem}학기`;
+
+  // SW 졸업요건: 들은 과목, 추천 과목, 인정 과목 전체
+  function swSection(res, plan) {
+    const sw = res.sw;
+    if (!sw) return '';
+    const short = Math.max(0, sw.need - sw.have);
+    const planned = new Map();
+    (plan.semesters || []).forEach((s) => s.items.forEach((i) => { if (/SW/.test(i.why)) planned.set(i.t, termName(s)); }));
+    const parts = sw.courses.map((c) => `${esc(c.t)} ${c.cr}학점${c.ip ? ' (수강 중)' : ''}`);
+    if (sw.official > sw.fromCourses) parts.push(`진단표에 집계된 SW ${sw.official - sw.fromCourses}학점`);
+    if (sw.manual) parts.push(`직접 입력한 ${sw.manual}학점`);
+    const takenTxt = parts.length ? parts.join(', ') : '아직 들은 SW 과목이 없어요';
+    const extra = '';
+    const recs = sw.options.filter((o) => !o.taken && ((o.src === 'hum' && o.campus === '서울') || o.own)).slice(0, 3);
+    const recHtml = short > 0 ? `<p class="lead" style="margin-top:12px"><b>추천 과목</b> (3학점씩, 교육과정상 1·2학기 개설)</p>
+      <ol class="swrec">${recs.map((o) => `<li><b>${esc(o.t)}</b> <span class="meta">${esc(o.no)} · ${o.cr}학점</span>${planned.has(o.t) ? ` <span class="chip">계획: ${esc(planned.get(o.t))}</span>` : ''}<div class="sub">${o.reasons.map(esc).join(' · ')}</div></li>`).join('')}</ol>` : '';
+    const grp = (o) => (o.src === 'biz' ? 3 : o.campus === '국제' ? 2 : o.cat === '자유이수' ? 0 : 1);
+    const rows = sw.options.slice().sort((a, b) => grp(a) - grp(b) || a.no.localeCompare(b.no)).map((o) => {
+      const mine = sw.courses.find((c) => K.norm(c.t) === K.norm(o.t));
+      const st = mine ? (mine.ip ? '수강 중' : '이수') : planned.has(o.t) ? '계획' : '';
+      return `<tr><td>${esc(o.t)}</td><td class="num">${esc(o.no)}</td><td class="num">${o.cr}</td><td>${esc(o.src === 'hum' ? (o.campus === '국제' ? '후마니타스 (국제캠퍼스 개설)' : o.cat === '배분이수' ? `후마니타스 배분이수 · ${o.area}` : '후마니타스 자유이수') : o.kind ? `경영대학 · 내 ${o.kind}` : '경영대학 개설')}</td><td class="st">${st}</td></tr>`;
+    }).join('');
+    return `<section class="section sw">
+      <h3>SW 교과목 <span class="meta">졸업까지 ${sw.need}학점</span></h3>
+      <p class="lead">${short ? `<b>${short}학점 더 필요해요.</b> ` : '<b>SW 요건을 채웠어요.</b> '}지금 ${sw.have}학점: ${takenTxt}.</p>
+      ${recHtml}
+      <details class="swall"><summary>SW로 인정되는 과목 전체 보기 (${sw.options.length}과목)</summary>
+        <table class="sim"><thead><tr><th>과목명</th><th>학수번호</th><th>학점</th><th>구분</th><th>상태</th></tr></thead><tbody>${rows}</tbody></table>
+        <p class="sub">기준: 2026학년도 학사제도안내의 SW기초교육 개설교과목 목록 (서울 후마니타스칼리지 21과목, 경영대학 9과목). 과목명·학점·이수구분은 2026 인포21 교육과정 기준이에요. 진단표에서 과목명 앞에 s(SW인증과목)가 붙은 과목은 이 목록에 없어도 SW로 계산해요.</p>
+      </details>
+    </section>`;
+  }
 
   function chatkhuPrompt(res, plan) {
     const unmet = res.unmet.map((r) => `- ${r.label}: ${r.flag ? '확인 필요' : `${r.have}/${r.need}${r.unit === '과목' ? '과목' : '학점'}`}${r.missing && r.missing.length ? ` (미이수: ${r.missing.join(', ')})` : ''}`).join('\n') || '- 없음';
@@ -298,6 +331,7 @@ ${planTxt || '- 남은 학기 없음'}
     <table class="audit"><caption>교양</caption>${th}<tbody>${auditRows(res, '교양', done)}</tbody></table>
     <table class="audit"><caption>전공 (${esc(res.deptLabel)}${res.track === 'multi' ? ', 다전공 기준' : ''})</caption>${th}<tbody>${auditRows(res, '전공', done)}</tbody></table>
     <table class="audit"><caption>졸업 학점과 기타 요건</caption>${th}<tbody>${auditRows(res, '졸업', done)}${auditRows(res, '기타', done)}</tbody></table>
+    ${swSection(res, plan)}
 
     <section class="section">
       <h3>관심 분야에서 바꿔 들을 수 있는 과목</h3>
@@ -362,7 +396,7 @@ ${planTxt || '- 남은 학기 없음'}
         if (r.year && r.year >= 2019 && r.year <= 2026) state.year = r.year; else if (r.year) notes.push(`졸업기준년도 ${r.year}는 이 사이트 범위(2019~2026) 밖이에요.`);
         if (r.dept) state.dept = r.dept; else notes.push('학과를 찾지 못했어요. 위에서 직접 골라 주세요.');
         state.courses = r.courses;
-        if (r.sw != null) state.sw = r.sw;
+        state.sw = 0; // 진단표의 공식 SW 학점은 state.official.sw로 들어가 과목 목록과 함께 계산된다
         state.liberal = { dist: 0, free: 0, general: 0, areas: state.liberal.areas, reqChecked: [], engExempt: false };
         state.official = Object.keys(r.official).length ? r.official : null;
         state.interests = []; state.interestsSet = false;

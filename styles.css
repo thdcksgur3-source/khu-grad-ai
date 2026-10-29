@@ -220,3 +220,18 @@ label.btn:focus-within { outline: 2px solid var(--crimson); outline-offset: 2px;
 
 .field h2::before { content: ''; display: inline-block; width: 4px; height: 14px; background: var(--crimson); border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
 label.btn.busy { opacity: .6; pointer-events: none; }
+
+.swtag { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 4px; background: var(--navy); color: #fff; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; vertical-align: 1px; }
+.section.sw .meta { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.swrec { margin: 6px 0 0; padding-left: 20px; }
+.swrec li { margin-bottom: 8px; }
+.swrec .meta { font-size: 12.5px; color: var(--faint); }
+.swall { margin-top: 10px; }
+.swall summary { cursor: pointer; color: var(--navy); font-size: 14px; }
+.swall table { margin-top: 8px; }
+.swall table td, .swall table th { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .swall table th:nth-child(2), .swall table td:nth-child(2) { display: none; } .swall table td.st { white-space: nowrap; } }
+.swall table td { white-space: normal !important; }
+.swall table td.num { white-space: nowrap !important; }
+@media (max-width: 640px) { .swall table th:nth-child(3), .swall table td:nth-child(3) { display: none; } }
+.swall table th, .swall table td.st { white-space: nowrap !important; }
