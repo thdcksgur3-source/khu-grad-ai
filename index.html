@@ -113,7 +113,13 @@
     </section>
   </aside>
 
-  <article class="sheet" id="sheet" aria-live="off"></article>
+  <div class="rightcol">
+    <div class="viewtabs" id="viewtabs" role="tablist" aria-label="결과 보기">
+      <button type="button" role="tab" id="tab-audit" data-view="audit" aria-selected="true" aria-controls="sheet">졸업사정표</button>
+      <button type="button" role="tab" id="tab-withdraw" data-view="withdraw" aria-selected="false" aria-controls="sheet">학점포기 시뮬레이션</button>
+    </div>
+    <article class="sheet" id="sheet" role="tabpanel" aria-live="off"></article>
+  </div>
 </main>
 
 <script src="data.js"></script>

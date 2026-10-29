@@ -395,7 +395,8 @@
   const DEPT_NAMES = ['빅데이터응용학과', '회계·세무학과', '회계ㆍ세무학과', '회계세무학과', '회계학과', '경영학과'];
   const isDiagnosis = (text) => /졸\s*업\s*진\s*단\s*표|졸업기준학점/.test(text || '');
   const cleanTitle = (t) => t.replace(/^[es#@*$%G]+(?=[가-힣A-Z0-9])/, '').replace(/\s+/g, ' ').trim();
-  const swMarked = (t) => { const m = (t || '').trim().match(/^([es#@*$%G]+)(?=[가-힣A-Z0-9])/); return !!(m && m[1].includes('s')); };
+  const markOf = (t) => { const m = (t || '').trim().match(/^([es#@*$%G]+)(?=[가-힣A-Z0-9])/); return m ? m[1] : ''; };
+  const swMarked = (t) => markOf(t).includes('s');
 
   function parseDiagnosis(text, opts = {}) {
     const cur = currentTerm(opts.now || new Date());
@@ -455,7 +456,7 @@
         }
         const known = byNo.get(code);
         const ip = (inCur && (matches.length === 1 || idx === 0)) || (cur && Number(yy) === cur.year && Number(ss) === cur.sem);
-        courses.push({ t: known ? known.t : title, no: code, cr: Number(cr), cat, ...(ip ? { ip: true } : {}), ...(swMarked(title0) ? { sw: 'mark' } : {}) });
+        courses.push({ t: known ? known.t : title, no: code, cr: Number(cr), cat, yr: Number(yy), sm: Number(ss), ...(ip ? { ip: true } : {}), ...(swMarked(title0) ? { sw: 'mark' } : {}), ...(markOf(title0).includes('#') ? { gradReq: true } : {}) });
       });
     });
 
@@ -476,6 +477,10 @@
       if (ex) { if (c.ip) ex.ip = true; if (c.sw) ex.sw = ex.sw || c.sw; } else { const { fromCur, ...rest } = c; merged.push(rest); }
     });
     if (sw != null) official.sw = sw;
+    const rc = text.match(/등\s*록\s*횟\s*수\s*(\d{1,2})(?!\d)/);
+    const st = text.match(/학\s*적\s*상\s*태\s*([가-힣])\s*([가-힣])/);
+    if (rc) official.regCount = Number(rc[1]);
+    if (st) official.status = st[1] + st[2];
     return { kind: 'diagnosis', year, dept, courses: merged, official, sw, skipped: [] };
   }
 
@@ -599,6 +604,90 @@
     return { semesters, done, maxCr, interests, finalRows: res.rows, flags: res.rows.filter((r) => r.flag && !r.ok).map((r) => r.label) };
   }
 
+  /* ===== 학점포기 시뮬레이션 =====
+     근거: 제58대 서울캠퍼스 총학생회 MATE '2026학년도 2학기 학점 포기 제도 신청 안내' (학교 공지 요약).
+     성적은 진단표에 없으므로 '어떤 과목을 포기해도 졸업요건이 유지되는지'만 판단한다. */
+  const WITHDRAW = { minReg: 7, period: '2026. 9. 15.(화) 09:30 ~ 9. 21.(월) 17:00', periodEnd: '2026-09-21' };
+  // 국가장학금 심사 대상 학기 = 성적이 나온 가장 최근 정규학기 (이번 학기의 바로 전 학기)
+  function scholarshipTerm(now) {
+    const cur = currentTerm(now || new Date());
+    if (!cur) { const d = now || new Date(); return { year: d.getFullYear() - 1, sem: 2 }; }
+    return cur.sem === 2 ? { year: cur.year, sem: 1 } : { year: cur.year - 1, sem: 2 };
+  }
+  function withdrawEligibility(official) {
+    if (!official || official.regCount == null) return { known: false };
+    const reg = official.regCount;
+    const status = official.status || null;
+    const reasons = [];
+    if (reg < WITHDRAW.minReg) reasons.push(`등록 ${reg}학기 (7학기 이상부터 신청 가능)`);
+    if (status && status !== '재학') reasons.push(`학적상태 ${status} (재학생만 신청 가능)`);
+    return { known: true, reg, status, ok: reasons.length === 0, reasons };
+  }
+  const blockingIds = (res) => new Set(res.rows.filter((r) => !r.ok && !r.flag).map((r) => r.id));
+  const MUST_KINDS = ['전공기초', '전공필수', '교양필수'];
+  // 전공선택 안의 과목군(회계·경영·빅데이터) 중 원래 충족이던 것이 새로 부족해지는 경우
+  const groupBreaks = (before, after) => {
+    const g0 = ((before.rows.find((r) => r.id === 'm-elec') || {}).groups) || [];
+    const g1 = ((after.rows.find((r) => r.id === 'm-elec') || {}).groups) || [];
+    return g1.filter((g) => g.have < g.need && (g0.find((x) => x.name === g.name) || { have: 0 }).have >= g.need)
+      .map((g) => ({ label: g.name, short: g.need - g.have }));
+  };
+  function withoutCourses(input, names) {
+    const drop = new Set(names.map(norm));
+    const removed = (input.courses || []).filter((c) => drop.has(norm(c.t)));
+    const swCr = removed.filter((c) => isSw(c)).reduce((a, c) => a + (Number(c.cr) || 0), 0);
+    const official = input.official ? { ...input.official, ...(input.official.sw != null ? { sw: Math.max(0, input.official.sw - swCr) } : {}) } : input.official;
+    return { ...input, official, courses: (input.courses || []).filter((c) => !drop.has(norm(c.t))) };
+  }
+  // 과목 하나씩 뺐을 때의 위험도 (이번 학기 수강 과목 포함 기준)
+  function withdrawRisks(input) {
+    const base = audit(input);
+    if (base.error) return { error: base.error };
+    const baseUnmet = blockingIds(base);
+    const sch = scholarshipTerm(input.now);
+    const rowsById = (res) => Object.fromEntries(res.rows.map((r) => [r.id, r]));
+    const b = rowsById(base);
+    const items = base.courses.filter((c) => !c.ip && !c.plan).map((c) => {
+      const after = audit(withoutCourses(input, [c.t]));
+      const a = rowsById(after);
+      const broken = after.rows.filter((r) => !r.ok && !r.flag && !baseUnmet.has(r.id)).map((r) => r.label).concat(groupBreaks(base, after).map((g) => g.label));
+      const worse = after.rows.filter((r) => !r.flag && baseUnmet.has(r.id) && r.id !== 'total' && (r.short || 0) > (b[r.id].short || 0)).map((r) => r.label);
+      const notes = [];
+      let level = 'ok';
+      if (MUST_KINDS.includes(c.kind)) { level = 'red'; notes.push(`${c.kind} 과목이라 포기하면 다시 들어야 해요`); }
+      if (c.gradReq) { level = 'red'; notes.push('진단표에 졸업필수(#)로 표시된 과목이라 졸업불가 판정이 날 수 있어요'); }
+      const kindLabel = { 전공기초: '전공기초', 전공필수: '전공필수', 교양필수: '필수교과' }[c.kind];
+      const extra = broken.filter((l) => l !== kindLabel);
+      if (broken.length) { level = 'red'; if (extra.length) notes.push(`포기하면 새로 부족해져요: ${extra.join(', ')}`); }
+      if (worse.length && !broken.length && !MUST_KINDS.includes(c.kind) && !c.gradReq) { if (level === 'ok') level = 'warn'; notes.push(`이미 부족한 요건(${worse.join(', ')})이 ${c.cr}학점 더 늘어나요. 다른 과목으로 채우면 돼요`); }
+      const schTerm = c.yr === sch.year && c.sm === sch.sem;
+      if (schTerm) { if (level === 'ok') level = 'warn'; notes.push(`${sch.year}-${sch.sem}학기 과목: 국가장학금 심사 대상 학기라 포기하면 장학금 환수 위험이 있어요`); }
+      if (!notes.length) notes.push(a.total && a.total.ok ? '포기해도 졸업요건이 유지돼요' : '다른 요건은 그대로고 졸업까지 남은 학점만 늘어나요');
+      return { t: c.t, no: c.no, cr: c.cr, kind: c.kind, grp: c.grp, yr: c.yr || null, sm: c.sm || null, sw: isSw(c), level, notes, schTerm };
+    });
+    const order = { red: 2, warn: 1, ok: 0 };
+    items.sort((x, y) => order[x.level] - order[y.level] || (y.yr || 0) - (x.yr || 0) || (y.sm || 0) - (x.sm || 0));
+    return { items, scholarship: sch, eligibility: withdrawEligibility(input.official), base };
+  }
+  // 고른 과목들을 함께 포기했을 때 전·후 비교
+  function withdrawSim(input, names, opts = {}) {
+    const before = audit(input);
+    const afterInput = withoutCourses(input, names);
+    const after = audit(afterInput);
+    const pb = planGraduation(input, opts);
+    const pa = planGraduation(afterInput, opts);
+    const baseUnmet = blockingIds(before);
+    const broken = after.rows.filter((r) => !r.ok && !r.flag && !baseUnmet.has(r.id)).map((r) => ({ label: r.label, short: r.short, unit: r.unit, missing: r.missing })).concat(groupBreaks(before, after));
+    const total = (res) => res.rows.find((r) => r.id === 'total');
+    const removed = before.courses.filter((c) => names.map(norm).includes(norm(c.t)));
+    return {
+      removedCr: removed.reduce((a, c) => a + (Number(c.cr) || 0), 0), removed: removed.map((c) => c.t),
+      before: { have: total(before).have, short: total(before).short, terms: pb.semesters.length, done: pb.done },
+      after: { have: total(after).have, short: total(after).short, terms: pa.semesters.length, done: pa.done },
+      broken, firstTerm: pa.semesters[0] || null, planAfter: pa,
+    };
+  }
+
   function parseAny(text, opts) {
     if (isDiagnosis(text)) return parseDiagnosis(text, opts);
     return { kind: 'transcript', ...parseTranscript(text) };
@@ -611,5 +700,5 @@
     return pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k)).slice(0, limit);
   }
 
-  root.KHU = { swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
+  root.KHU = { withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
 })(typeof window !== 'undefined' ? window : globalThis);

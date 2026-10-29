@@ -237,3 +237,31 @@ label.btn.busy { opacity: .6; pointer-events: none; }
 .swall table th, .swall table td.st { white-space: nowrap !important; }
 .ask textarea:focus { outline: 2px solid var(--khu-red-bright); outline-offset: 1px; border-color: transparent; }
 .ask .btn.ghost { background: #fff; color: var(--khu-red-bright); border-color: #eec2bf; }
+
+/* ---------- 결과 탭 ---------- */
+.viewtabs { display: flex; gap: 4px; margin-bottom: -1px; position: relative; z-index: 1; }
+.viewtabs button { border: 1px solid var(--line); border-bottom: 0; background: #f4efea; color: var(--muted); padding: 10px 18px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 14.5px; font-weight: 600; }
+.viewtabs button[aria-selected=true] { background: var(--sheet); color: var(--crimson); box-shadow: inset 0 3px 0 var(--crimson); }
+@media (max-width: 640px) { .viewtabs button { flex: 1; padding: 10px 6px; font-size: 14px; } }
+/* ---------- 학점포기 ---------- */
+.wd-notice { margin: 18px 0 0; padding: 14px 16px 14px 32px; background: #fbf7ef; border: 1px solid #eadfc4; border-radius: 8px; font-size: 14px; line-height: 1.65; }
+.wd-notice li + li { margin-top: 4px; }
+.wd-empty { margin: 16px 0 0; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); font-size: 14px; }
+.wd-result { margin-top: 16px; padding: 16px 18px; border: 2px solid var(--crimson); border-radius: 8px; background: linear-gradient(180deg, #fffaf9, #fff); }
+.wd-result h3 { margin: 0 0 4px; font: 700 18px/1.4 var(--serif); }
+.wd-cmp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.wd-cmp div { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.wd-cmp span { display: block; font-size: 12.5px; color: var(--muted); }
+.wd-cmp b { font-size: 17px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .wd-cmp { grid-template-columns: 1fr; } }
+.wd-group { margin: 18px 0 6px; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wd-group .meta { font-size: 13px; color: var(--muted); font-weight: 400; }
+.lv { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.lv.lv-ok { background: #e3f1e7; color: #1f6b3a; } .lv.lv-warn { background: #fbefd5; color: #8a5a00; } .lv.lv-red { background: #fbe3e3; color: #a40f16; }
+table.wd td.ck { width: 34px; } table.wd input[type=checkbox] { width: 18px; height: 18px; }
+table.wd td label { cursor: pointer; }
+table.wd td, table.wd th { white-space: normal !important; } table.wd td.num { white-space: nowrap !important; }
+@media (max-width: 640px) { table.wd th:nth-child(5), table.wd td:nth-child(5) { display: none; } }
+.section h3 .meta { font: 400 13px/1.4 var(--sans); color: var(--muted); margin-left: 6px; }
+table.wd th { white-space: nowrap !important; }
+table.wd td:nth-child(5) { white-space: nowrap !important; }

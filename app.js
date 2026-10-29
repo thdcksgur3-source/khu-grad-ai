@@ -46,7 +46,7 @@
   const state = {
     year: 2024, dept: '경영학과', track: 'single', sw: 0, examDone: false, thesisDone: false,
     courses: [], liberal: { dist: 0, free: 0, general: 0, areas: [], reqChecked: [], engExempt: false },
-    interests: [], tab: 'paste', sampleName: null, official: null, maxCr: 18,
+    interests: [], tab: 'paste', sampleName: null, official: null, maxCr: 18, view: 'audit', withdraw: [],
   };
   let lastCount = -1;
   // ChatKHU 질문: 사용자가 고친 내용은 화면이 다시 그려져도 유지한다 (다른 학생을 불러오면 초기화)
@@ -147,6 +147,90 @@
   }
 
   const termName = (t) => `${t.year}학년도 ${t.sem}학기`;
+
+  /* ---------- 학점포기 시뮬레이션 탭 ---------- */
+  let wdCache = { key: '', data: null };
+  const wdKey = (input) => JSON.stringify([input.year, input.dept, input.track, input.courses, input.liberal, input.sw, input.official, input.retro2027]);
+  const LV = { ok: ['lv-ok', '여유'], warn: ['lv-warn', '주의'], red: ['lv-red', '위험'] };
+  function renderWithdraw(input, res) {
+    const out = $('#sheet');
+    const key = wdKey(input);
+    if (wdCache.key !== key) wdCache = { key, data: K.withdrawRisks(input) };
+    const data = wdCache.data;
+    const items = data.items || [];
+    const names = new Set(items.map((i) => K.norm(i.t)));
+    state.withdraw = state.withdraw.filter((t) => names.has(K.norm(t)));
+    const el = data.eligibility;
+    const elig = !el || !el.known ? '<li>진단표를 올리면 신청 대상(7학기 이상 등록한 재학생)인지 자동으로 확인해요.</li>'
+      : el.ok ? `<li><b>신청 대상이에요.</b> 진단표 기준 등록 ${el.reg}학기, 학적상태 ${esc(el.status || '확인 안 됨')}.</li>`
+        : `<li><b class="short">진단표 기준으로는 신청 대상이 아니에요:</b> ${el.reasons.map(esc).join(', ')}.</li>`;
+    const sch = data.scholarship;
+    const groups = [['ok', '포기해도 졸업요건이 유지돼요'], ['warn', '주의가 필요해요'], ['red', '포기하면 졸업요건이 깨지거나 다시 들어야 해요']];
+    const row = (i) => {
+      const id = `wd-${i.no || K.norm(i.t)}`;
+      return `<tr class="${LV[i.level][0]}"><td class="ck"><input type="checkbox" id="${esc(id)}" data-wd="${esc(i.t)}" ${state.withdraw.some((t) => K.norm(t) === K.norm(i.t)) ? 'checked' : ''}></td>
+        <td><label for="${esc(id)}"><b>${esc(i.t)}</b>${i.sw ? '<b class="swtag">SW</b>' : ''}</label><div class="sub">${i.notes.map(esc).join(' · ')}</div></td>
+        <td class="num">${i.cr}학점</td><td class="num">${i.yr ? `${i.yr}-${i.sm}` : '—'}</td><td>${esc(i.kind === '전공선택' && i.grp ? `${i.grp}과목군` : i.kind)}</td></tr>`;
+    };
+    const tables = groups.map(([lv, title]) => {
+      const list = items.filter((i) => i.level === lv);
+      if (!list.length) return '';
+      return `<h4 class="wd-group"><span class="lv ${LV[lv][0]}">${LV[lv][1]}</span> ${esc(title)} <span class="meta">${list.length}과목</span></h4>
+        <table class="sim wd"><thead><tr><th><span class="sr-only">선택</span></th><th>과목</th><th>학점</th><th>이수 학기</th><th>구분</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>`;
+    }).join('');
+    out.innerHTML = `
+    <div class="sheet-head"><div><h2>학점포기 시뮬레이션</h2><p class="who">${esc(res.deptLabel)} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'} · 포기해도 졸업할 수 있는지 미리 확인해요</p></div></div>
+    <ul class="wd-notice">
+      <li><b>2026학년도 2학기 신청 기간(${esc(K.WITHDRAW.period)})은 끝났어요.</b> 다음 신청 기간은 학교 공지를 확인하세요. 신청은 인포21 → 수업/성적 → 성적 → 학점포기신청에서 해요.</li>
+      ${elig}
+      <li>진단표에는 과목별 성적이 없어요. 인포21 성적조회에서 포기하고 싶은 과목을 확인한 뒤 아래에서 체크하면, 졸업에 미치는 영향을 계산해요. 평점 변화는 인포21 학점포기 화면 위쪽에서 볼 수 있어요.</li>
+    </ul>
+    <div id="wdResult" aria-live="polite"></div>
+    ${items.length ? `<section class="section"><h3>이수한 과목 <span class="meta">이번 학기 수강 중인 과목은 성적이 없어 빠져요</span></h3>${tables}</section>`
+      : '<p class="wd-empty">이수한 과목이 없어요. 졸업진단표를 올리거나 예시 학생을 골라 보세요.</p>'}
+    <section class="section"><details class="swall"><summary>학점포기 유의사항 보기</summary>
+      <ul class="tips" style="margin-top:8px">
+        <li>신청 대상: 7학기 이상 등록한 재학생(수업연한 초과자 포함). 휴학생·수료생·학사학위취득유예생·졸업생은 신청할 수 없어요.</li>
+        <li>대상 과목: 본교에서 이수한 모든 과목. 편입 때 인정받은 학점과 급제(P)를 받은 과목은 포기할 수 없어요.</li>
+        <li>졸업필수 과목이나 졸업능력인증 과목을 포기하면 최종 졸업사정에서 졸업불가 판정이 날 수 있어요.</li>
+        <li>${sch.year}-${sch.sem}학기처럼 국가장학금 심사 대상 학기(성적이 나온 직전 학기)의 학점을 포기하면, 받은 장학금(고지서 감면 포함)을 모두 돌려내야 할 수 있어요. 학생지원센터에 먼저 문의하세요.</li>
+        <li>포기한 과목을 다시 들으면 재수강으로 처리돼 학기당 재수강 허용 과목 수에 들어가고, 최고 A0까지 받을 수 있어요.</li>
+        <li>포기 전 성적으로 받은 성적경고 등은 그대로 유효하고, 포기한 성적은 다시 인정받을 수 없어요. 성적표에는 W로 표시돼요.</li>
+        <li>교양 개편으로 대체 인정된 과목은 재수강이 아니라서, 대체 전 과목의 성적을 지우려면 학점포기를 신청해야 해요.</li>
+      </ul>
+      <p class="sub">출처: 제58대 경희대학교 서울캠퍼스 총학생회 MATE, 2026학년도 2학기 학점 포기 제도 신청 안내. 최종 판단은 인포21 학점포기 화면과 학과 확인을 따르세요.</p>
+    </details></section>`;
+    renderWithdrawResult(input);
+  }
+  function renderWithdrawResult(input) {
+    const box = $('#wdResult');
+    if (!box) return;
+    const sel = state.withdraw;
+    if (!sel.length) { box.innerHTML = '<p class="wd-empty">아래 목록에서 포기를 고민하는 과목을 체크하면 여기에 결과가 나와요.</p>'; return; }
+    const r = K.withdrawSim(input, sel, { maxCr: state.maxCr });
+    const items = (wdCache.data && wdCache.data.items) || [];
+    const picked = items.filter((i) => sel.some((t) => K.norm(t) === K.norm(i.t)));
+    const warns = picked.filter((i) => i.level !== 'ok');
+    const terms = (x) => (x.short <= 0 ? '이번 학기로 졸업' : x.done ? `${x.terms}학기` : `${x.terms}학기 이상`);
+    const moreTerms = r.after.terms > r.before.terms && r.after.short > 0;
+    const verdict = r.broken.length ? '<b class="short">졸업요건이 새로 부족해져요.</b> 포기한 만큼 다시 들어야 할 과목이 생겨요.'
+      : moreTerms ? `<b class="short">졸업이 ${r.after.terms - Math.max(r.before.terms, 0)}학기 늦어져요.</b>`
+        : r.after.short > r.before.short ? `<b>졸업 시기는 그대로예요.</b> 다만 남은 학기에 ${r.removedCr}학점을 더 들어야 해요.`
+          : '<b>졸업에 영향이 없어요.</b>';
+    box.innerHTML = `<section class="wd-result">
+      <h3>선택한 ${sel.length}과목 (${r.removedCr}학점)을 포기하면</h3>
+      <p class="lead">${verdict}</p>
+      <div class="wd-cmp">
+        <div><span>이번 학기 후 이수학점</span><b>${r.before.have} → ${r.after.have}</b></div>
+        <div><span>졸업까지 남은 학점</span><b>${Math.max(0, r.before.short)} → ${Math.max(0, r.after.short)}</b></div>
+        <div><span>남은 학기</span><b>${terms(r.before)} → ${terms(r.after)}</b></div>
+      </div>
+      ${r.broken.length ? `<p class="sub" style="margin-top:10px"><b>새로 부족해지는 요건:</b> ${r.broken.map((b) => `${esc(b.label)}${b.short ? ` ${b.short}${b.unit === '과목' ? '과목' : '학점'}` : ''}${b.missing && b.missing.length ? ` (${b.missing.map(esc).join(', ')})` : ''}`).join(', ')}</p>` : ''}
+      ${warns.length ? `<ul class="tips" style="margin-top:8px">${warns.map((i) => `<li><b>${esc(i.t)}</b>: ${i.notes.map(esc).join(' · ')}</li>`).join('')}</ul>` : ''}
+      ${r.firstTerm && r.after.short > 0 ? `<p class="sub" style="margin-top:10px"><b>포기 후 ${esc(termName(r.firstTerm))} 계획:</b> ${r.firstTerm.items.map((i) => esc(i.t)).join(', ')}</p>` : ''}
+      <div class="btnrow" style="margin-top:10px"><button class="btn ghost small" type="button" id="wdClear">선택 모두 해제</button></div>
+    </section>`;
+  }
 
   // SW 졸업요건: 들은 과목, 추천 과목, 인정 과목 전체
   function swSection(res, plan) {
@@ -254,7 +338,10 @@ ${planTxt || '- 남은 학기 없음'}
     const input = { ...state, now: NOW };
     const res = K.audit(input);
     const out = $('#sheet');
+    document.querySelectorAll('#viewtabs [data-view]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === state.view)));
+    out.setAttribute('aria-labelledby', state.view === 'withdraw' ? 'tab-withdraw' : 'tab-audit');
     if (res.error) { out.innerHTML = `<p class="error">${esc(res.error)}</p>`; renderCourseList(null); renderLibChecks(null); return; }
+    if (state.view === 'withdraw') { renderCourseList(res); renderLibChecks(res); renderWithdraw(input, res); return; }
     if (!state.courses.length && !state.official) {
       renderCourseList(res); renderLibChecks(res); lastCount = -1;
       out.innerHTML = `<div class="sheet-head"><div><h2>졸업사정표</h2><p class="who">${esc(res.deptLabel)} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}</p></div></div>
@@ -408,11 +495,11 @@ ${planTxt || '- 남은 학기 없음'}
         state.sw = 0; // 진단표의 공식 SW 학점은 state.official.sw로 들어가 과목 목록과 함께 계산된다
         state.liberal = { dist: 0, free: 0, general: 0, areas: state.liberal.areas, reqChecked: [], engExempt: false };
         state.official = Object.keys(r.official).length ? r.official : null;
-        promptEdit = null;
+        promptEdit = null; state.withdraw = [];
         state.interests = []; state.interestsSet = false;
         state.sampleName = null;
         const ipN = r.courses.filter((c) => c.ip).length;
-        if (window.matchMedia('(max-width: 960px)').matches) setTimeout(() => $('#sheet').scrollIntoView({ behavior: 'smooth' }), 50);
+        if (window.matchMedia('(max-width: 960px)').matches) setTimeout(() => $('#viewtabs').scrollIntoView({ behavior: 'smooth' }), 50);
         msg.textContent = `${source} 졸업진단표를 읽었어요. ${K.deptLabel(state.dept, state.year)} ${state.year} 기준, ${r.courses.length - ipN}과목을 넣었어요${ipN ? ` (이번 학기 수강 중 ${ipN}과목 포함)` : ''}. 학번·학과도 진단표에 맞췄어요. ${ipN ? '' : '이번 학기에 듣는 과목은 아래 칸에서 추가하세요.'} ${notes.join(' ')}`;
       } else {
         addCourses(r.courses);
@@ -511,7 +598,7 @@ ${planTxt || '- 남은 학기 없음'}
       render();
     });
     $('#maxcr').addEventListener('change', (e) => { state.maxCr = Number(e.target.value); renderResult(); });
-    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; promptEdit = null; render(); });
+    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; promptEdit = null; state.withdraw = []; render(); });
 
     $('#libreq').addEventListener('change', (e) => {
       const t = e.target.dataset.req; if (!t) return;
@@ -544,11 +631,26 @@ ${planTxt || '- 남은 학기 없음'}
       const s = SAMPLES[b.dataset.sample];
       Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses })));
       state.liberal = { reqChecked: [], engExempt: false, ...JSON.parse(JSON.stringify(s.liberal)) };
-      state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; promptEdit = null;
+      state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; promptEdit = null; state.withdraw = [];
       render();
-      if (window.matchMedia('(max-width: 960px)').matches) $('#sheet').scrollIntoView({ behavior: 'smooth' });
+      if (window.matchMedia('(max-width: 960px)').matches) $('#viewtabs').scrollIntoView({ behavior: 'smooth' });
     });
 
+    $('#viewtabs').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-view]'); if (!b || state.view === b.dataset.view) return;
+      state.view = b.dataset.view; renderResult();
+    });
+    $('#viewtabs').addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      state.view = state.view === 'audit' ? 'withdraw' : 'audit'; renderResult(); $(`#tab-${state.view}`).focus();
+    });
+    $('#sheet').addEventListener('change', (e) => {
+      const t = e.target.dataset && e.target.dataset.wd; if (!t) return;
+      const set = new Map(state.withdraw.map((x) => [K.norm(x), x]));
+      if (e.target.checked) set.set(K.norm(t), t); else set.delete(K.norm(t));
+      state.withdraw = [...set.values()];
+      renderWithdrawResult({ ...state, now: NOW });
+    });
     $('#sheet').addEventListener('input', (e) => {
       if (e.target.id !== 'prompt') return;
       const v = e.target.value;
@@ -568,6 +670,12 @@ ${planTxt || '- 남은 학기 없음'}
         state.interests = [...s];
         state.interestsSet = true;
         renderResult();
+        return;
+      }
+      if (e.target.id === 'wdClear') {
+        state.withdraw = [];
+        document.querySelectorAll('#sheet input[data-wd]').forEach((c) => { c.checked = false; });
+        renderWithdrawResult({ ...state, now: NOW });
         return;
       }
       if (e.target.id === 'resetPrompt') {
