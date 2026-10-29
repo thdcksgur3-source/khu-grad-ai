@@ -84,6 +84,9 @@ check(engOf(e3).have === 3 && engOf(e3).ok, '진단표 e 표시 3과목(수강 �
 check(engOf(e3.slice(0, 2)).short === 1, 'e 표시 2과목 → 1과목 부족');
 check(engOf(e3.slice(0, 2), { official: { engHave: 3 } }).have === 3, '진단표 공식 영어강의 수와 같은 과목을 두 번 세지 않음');
 check(engOf([], { engManual: 2 }).have === 2, '직접 입력한 영어강의 과목 수 반영');
+check(engOf([{ t: '대학영어', cat: '교양필수', eng: 'mark' }, { t: '재무관리', cat: '전공필수', eng: 'mark', ip: true }]).have === 1, '교양 영어강의(대학영어)는 영어강좌 의무이수에서 빼고 전공과목만 셈');
+check(engOf([{ t: '대학영어', eng: 'mark' }, { t: '인간의가치탐색', eng: 'mark' }, { t: '마케팅원론', eng: 'mark' }]).have === 1, '이수구분이 없어도 교양 과목의 영어강의는 세지 않음');
+check(engOf([{ t: '경영커뮤니케이션', cat: '전공선택', eng: 'mark' }], { dept: '회계·세무학과', year: 2019 }).have === 1, '타전공으로 인정된 경영대 전공선택 영어강의는 셈');
 const pe = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single', courses: [], liberal: {}, now: NOW }, { maxCr: 18 });
 const engHints = pe.semesters.flatMap((s) => s.items).filter((i) => i.eng);
 check(pe.done && engHints.length === 3 && engHints.every((i) => /영어강의/.test(i.why)), `신입생 계획: 전공과목 3개에 '영어강의 분반으로' 표시 (실제 ${engHints.length}개)`);
@@ -106,6 +109,8 @@ const gd3 = K.parseDiagnosis(gyText('회계학과', 2022), { now: NOW });
 check(gd3.gyeyeol === null && gd3.dept === '회계·세무학과', '학과 칸이 회계학과면 기존처럼 회계·세무학과');
 const gd4 = K.parseDiagnosis(gyText('경영학과', 2025), { now: NOW });
 check(gd4.gyeyeol === null && gd4.dept === '경영학과', '학과 칸이 경영학과면 기존처럼 경영학과');
+const exch = K.parseDiagnosis(gyText('경영학과', 2023) + '\n08 EXCH015956 생활일본어(학점교류) 3 2025 / 2 계절', { now: NOW });
+check(exch.courses.some((c) => c.no === 'EXCH015956' && c.cr === 3), '학점교류처럼 학수번호 숫자가 6자리인 과목도 읽음');
 for (const d of K.GYEYEOL.depts) {
   const r = K.audit({ year: 2026, dept: d, track: 'single', courses: gd1.courses, liberal: {}, now: NOW });
   check(!r.error && r.rows.find((x) => x.label === '전공기초').have === 6, `계열 학생 수강 기록을 ${K.deptLabel(d, 2026)} 세칙으로 계산 (전공기초 6학점)`);
