@@ -498,7 +498,7 @@ ${planTxt || '- 남은 학기 없음'}
         <td>${d.extra > 0 ? `<span class="big">+${d.extra}</span>학점 더` : d.extra < 0 ? `<span class="big">${-d.extra}</span>학점 덜<div class="sub">1전공 기준이 줄어서 남은 전공학점이 오히려 적어요. 졸업 ${res.credits.need}학점은 그대로예요</div>` : '<span class="big">0</span>학점, 똑같아요'}</td></tr>`).join('')}
       </tbody></table>
       <div class="box" style="margin-top:16px"><h4>마이크로디그리</h4>
-        <ul class="reclist">${res.mds.map((m) => `<li><span><b>${esc(m.name)}</b>${m.remain && (m.todo.length === 1 || m.remain <= 3) ? ' <span class="nearly">거의 다 왔어요</span>' : ''} <small>${esc(m.host)}</small><div class="sub">${m.done.length ? `이수: ${m.done.map(esc).join(', ')}` : '아직 이수한 과목 없음'}${m.remain ? `, 남은 과목: ${m.todo.map(esc).join(', ')}` : ''}</div></span><small>${m.remain ? `${m.remain}학점 남음` : '요건 충족'}</small></li>`).join('')}</ul>
+        <ul class="reclist">${res.mds.map((m) => `<li><span><b>${esc(m.name)}</b>${m.remain && (m.todo.length === 1 || m.remain <= 3) ? ' <span class="nearly">거의 다 왔어요</span>' : ''} <small>${esc(m.host)}</small><div class="sub">${m.done.length ? `이수: ${m.done.map(esc).join(', ')}` : '아직 이수한 과목 없음'}${m.remain ? `, 남은 과목: ${m.todo.map(esc).join(', ')}` : ''}</div></span><small>${m.remain ? `${m.remain}학점 남음` : '<span class="md-done">✓ 요건 충족</span>'}</small></li>`).join('')}</ul>
       </div>
     </section>
 
