@@ -35,6 +35,22 @@
   // 영어강좌 의무이수제는 전공과목(전공기초·전공필수·전공선택) 영어강좌를 센다 (학사지원팀 안내).
   // 인포21 집계와 같게, 교양 과목(대학영어 등 교양필수·배분이수·자유이수, GE 학수번호)의 영어강의만 빼고 나머지 전공 개설 과목은 센다.
   const LIB_CAT = /^(교양|배분이수|자유이수)/;
+  /* 현장실습 학점 인정 (학사정보 '표준현장실습학기제', 현장실습지원센터 학점인정 기준, 경영대학 학사 FAQ 2026.04.20)
+     - 이수구분은 학과장이 전공선택 또는 일반선택으로 인정. 장기현장실습의 경영대학 전공선택 인정은 최대 9학점, 나머지는 일반선택
+     - 단기현장실습은 전공선택 또는 일반선택 중 하나로만 인정(나눠서 인정하지 않음)
+     - 단기 20~39일 3학점, 40일 이상 6학점(졸업까지 최대 9) / 장기 40~55일 6, 56~71일 9, 72일 이상 12학점(1회, 최대 12) / 통산 21학점
+     - 졸업시험 대체는 경영대학 전공학점으로 인정받은 경우만 (경영대 FAQ). 빅데이터는 현장실습 학점 취득자를 졸업프로젝트 통과로 인정 */
+  const FIELD_RE = /현장실습|현장연수/;
+  const isField = (c) => FIELD_RE.test(c.t || '');
+  const FIELD_OPTS = [
+    { label: '장기현장실습 12학점 (72일 이상)', parts: [{ t: '장기현장실습(전공선택)', cr: 9, cat: '전공선택' }, { t: '장기현장실습(일반선택)', cr: 3, cat: '일반선택' }], note: '전공선택 9 + 일반선택 3' },
+    { label: '장기현장실습 9학점 (56~71일)', parts: [{ t: '장기현장실습(전공선택)', cr: 9, cat: '전공선택' }], note: '전공선택 9' },
+    { label: '장기현장실습 6학점 (40~55일)', parts: [{ t: '장기현장실습(전공선택)', cr: 6, cat: '전공선택' }], note: '전공선택 6' },
+    { label: '단기현장실습 6학점 (40일 이상), 전공 인정', parts: [{ t: '단기현장실습(전공선택)', cr: 6, cat: '전공선택' }], note: '전공선택 6' },
+    { label: '단기현장실습 6학점 (40일 이상), 일반선택 인정', parts: [{ t: '단기현장실습(일반선택)', cr: 6, cat: '일반선택' }], note: '일반선택 6' },
+    { label: '단기현장실습 3학점 (20~39일), 전공 인정', parts: [{ t: '단기현장실습(전공선택)', cr: 3, cat: '전공선택' }], note: '전공선택 3' },
+    { label: '단기현장실습 3학점 (20~39일), 일반선택 인정', parts: [{ t: '단기현장실습(일반선택)', cr: 3, cat: '일반선택' }], note: '일반선택 3' },
+  ];
   const engCounts = (c) => isEng(c) && !(LIB_CAT.test(c.cat || '') || LIB_CAT.test(c.kind || '') || /^GE/.test(c.no || '') || isLibReq(c.t));
   function swStatus(courses, input, need) {
     const counted = courses.filter((c) => isSw(c) && !c.plan);
@@ -126,6 +142,8 @@
     if (g.required_choose && inList(g.required_choose.from, c.t)) return { kind: '전공필수택' };
     const info = lookup(c);
     const cat0 = c.cat || (info && info.cat);
+    // 현장실습: 진단표(또는 직접 고른) 이수구분을 따른다. 전공으로 인정받았으면 본전공 전공선택(과목군은 학과 확인)
+    if (isField(c)) return /^전공/.test(cat0 || '') ? { kind: '전공선택', grp: '경영', field: true } : { kind: '일반선택', field: true };
     if (['배분이수', '자유이수', '일반선택', '교양필수'].includes(cat0)) return { kind: cat0 };
     const p = prefixOf(c);
     const biz = (info && Object.keys(info.k).length > 0) || ['MGMT', 'ACCT', 'BDAS'].includes(p);
@@ -285,7 +303,12 @@
       note: `2008학년도 이후 입학생은 전공과목(전공기초·전공필수·전공선택) 영어강좌 ${engNeed}과목 이상 (편입생 1과목). 영어강의는 분반마다 정해져 진단표의 e 표시로 세요${engOfficial > engCourses.length ? `. 진단표 집계 ${engOfficial}과목` : ''}${engNonMajor.length ? `. 교양 영어강의(${engNonMajor.map((c) => c.t).join(', ')})는 세지 않았어요` : ''}.`,
     });
     const examLabel = common.graduation_exam ? '졸업시험 통과 또는 대체' : '졸업프로젝트 통과';
-    rows.push({ id: 'exam', area: '기타', label: examLabel, ok: !!input.examDone, flag: true, subs: common.graduation_exam_substitutes || [], note: common.graduation_note || common.graduation_exam_note, schedule: common.graduation_project_schedule || null });
+    // 졸업시험·졸업프로젝트 대체: 전공으로 인정받은 현장실습(빅데이터는 현장실습 학점 취득), 경영학과는 캡스톤디자인(경영학)도
+    const fieldCs = courses.filter((c) => c.field && (key === '빅데이터응용학과' || c.kind === '전공선택'));
+    const capstone = key === '경영학과' ? courses.filter((c) => /^캡스톤디자인1?\(경영학\)$/.test((c.t || '').replace(/\s/g, ''))) : [];
+    const subBy = fieldCs.concat(capstone);
+    const examAuto = subBy.length > 0;
+    rows.push({ id: 'exam', area: '기타', label: examLabel, ok: !!input.examDone || examAuto, auto: examAuto && !input.examDone ? subBy.map((c) => c.t + (c.ip ? '(수강 중)' : '')) : null, flag: true, subs: common.graduation_exam_substitutes || [], note: common.graduation_note || common.graduation_exam_note, schedule: common.graduation_project_schedule || null });
     rows.push({ id: 'thesis', area: '기타', label: `${thesis} 수강신청`, ok: !!input.thesisDone || courses.some((c) => /졸업논문/.test(c.t)), flag: true });
 
     /* --- 놓치기 쉬운 규정 --- */
@@ -300,7 +323,10 @@
     const unsureCs = electives.filter((c) => c.unsure);
     if (unsureCs.length) tips.push(`${unsureCs.map((c) => c.t).join(', ')} 과목은 ${year}학번 세칙의 회계과목군 목록에 없어요. 진단 표에서는 회계과목군으로 셌지만, 인정되지 않으면 회계과목군이 ${sum(unsureCs)}학점 더 부족해요. 수강 계획은 인정되지 않는 경우까지 대비해서 짰으니, 학과에 꼭 확인하세요.`);
     if (multi && year <= 2023) tips.push(`다전공 전공학점은 세칙 부칙상 "선발연도" 기준으로 적용된다고 적혀 있어요. 2024학년도 이후에 다전공으로 선발됐다면 입학년도 기준(${byYear(g.multi.total, year)}학점)이 아니라 2024 개정 기준(39학점)이 적용될 수도 있으니 학과에 확인하세요.`);
-    if (common.graduation_exam) tips.push('졸업시험은 공인회계사 1차 합격, 현장실습, 공인 경진대회 입상 등으로 대체할 수 있어요.');
+    if (common.graduation_exam) tips.push('졸업시험은 공인회계사 1차 합격, 현장실습, 공인 경진대회 입상 등으로 대체할 수 있어요. 단, 현장실습은 경영대학 전공학점으로 인정받은 경우에만 졸업시험이 면제돼요 (경영대 학사 FAQ).');
+    const fieldAll = courses.filter((c) => c.field);
+    if (fieldAll.length) tips.push(`현장실습 ${sum(fieldAll)}학점은 ${['전공선택', '일반선택'].map((k) => [k, sum(fieldAll.filter((c) => c.kind === k))]).filter(([, n]) => n).map(([k, n]) => `${k} ${n}학점`).join(', ')}으로 셌어요. 이수구분은 학과장이 전공 관련성을 보고 전공선택 또는 일반선택으로 정하고, 경영대학 장기현장실습은 전공선택 최대 9학점까지 인정돼요. 과목군(${key === '회계·세무학과' ? '회계/경영' : key === '빅데이터응용학과' ? '빅데이터/경영' : '경영'}) 인정은 학과에 확인하세요.`);
+    else tips.push('현장실습도 학점으로 인정돼요. 단기 최대 9학점, 장기 1회 최대 12학점(통산 21학점)이고, 경영대학 장기현장실습은 전공선택 9학점까지 인정돼요. 4개 학기 이상, 전공 15학점 이상 이수하면 신청할 수 있어요. 과목 검색에서 "현장실습"을 치면 계획에 넣어 볼 수 있어요.');
     if (key === '회계·세무학과' && year <= 2023) tips.push('19~23학번 회계학과는 회사법·유가증권법·재무제표분석·가치평가론이 경영과목군이에요. 회계과목군 15학점 계산에서 빠지니 주의하세요.');
 
     /* --- 다전공 시뮬레이션 (경영대 안) --- */
@@ -425,7 +451,7 @@
   const GYEYEOL = { name: '경영회계계열', depts: ['경영학과', '회계·세무학과'], common: ['경영통계학', '경영학원론', '책임경영', '회계원리'] }; // 두 학과 공통 전공기초 (2026 세칙)
   const DEPT_NAMES = ['빅데이터응용학과', '회계·세무학과', '회계ㆍ세무학과', '회계세무학과', '회계학과', '경영학과'];
   const isDiagnosis = (text) => /졸\s*업\s*진\s*단\s*표|졸업기준학점/.test(text || '');
-  const cleanTitle = (t) => t.replace(/^[es#@*$%G]+(?=[가-힣A-Z0-9])/, '').replace(/\s+/g, ' ').trim();
+  const cleanTitle = (t) => t.replace(/^\*\s+/, '').replace(/^[es#@*$%G]+(?=[가-힣A-Z0-9])/, '').replace(/\s+/g, ' ').trim();
   const markOf = (t) => { const m = (t || '').trim().match(/^([es#@*$%G]+)(?=[가-힣A-Z0-9])/); return m ? m[1] : ''; };
   const swMarked = (t) => markOf(t).includes('s');
 
@@ -795,8 +821,10 @@
     const k = norm(q);
     if (!k) return [];
     const pool = [...byTitle.values()].concat(LIB_REQ.map((x) => ({ t: x.t, cr: x.cr, no: null, k: {}, lib: true })));
-    return pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k)).slice(0, limit);
+    const hits = pool.filter((c) => norm(c.t).includes(k) || (c.no || '').toLowerCase().includes(k));
+    const fieldHits = /현장|실습|인턴/.test(q) ? FIELD_OPTS.map((o, i) => ({ t: o.label, cr: sum(o.parts), no: null, field: i, note: o.note })) : [];
+    return fieldHits.concat(hits.filter((c) => !(fieldHits.length && norm(c.t) === norm('현장실습')))).slice(0, fieldHits.length ? fieldHits.length + 3 : limit);
   }
 
-  root.KHU = { engCounts, regSoFar, GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
+  root.KHU = { FIELD_OPTS, isField, engCounts, regSoFar, GYEYEOL, isEng, withdrawRisks, withdrawSim, withdrawEligibility, scholarshipTerm, WITHDRAW, swOptions, isSw, SW_LIST, audit, planGraduation, currentTerm, parseTranscript, parseDiagnosis, parseAny, isDiagnosis, searchCourses, deptLabel, groupFor, LIB_REQ, norm, nextTerm, lookup };
 })(typeof window !== 'undefined' ? window : globalThis);

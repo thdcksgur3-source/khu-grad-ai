@@ -282,6 +282,7 @@
       if (r.engCourses && r.engCourses.length) detail += `<div class="detail">${r.engCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.swCourses && r.swCourses.length) detail += `<div class="detail">${r.swCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
       if (r.note) detail += `<div class="sub">${esc(r.note)}</div>`;
+      if (r.auto) detail += `<div class="sub">${r.auto.map(esc).join(', ')} 이수로 대체할 수 있어요.${r.auto.some((t) => /현장/.test(t)) ? ' 현장실습은 경영대학 전공학점으로 인정받은 경우에만 대체돼요.' : ''} 대체 인정은 학과에 확인하세요.</div>`;
       if (r.subs && r.subs.length && !r.ok) detail += `<div class="sub">대체 가능: ${r.subs.map(esc).join(' / ')}</div>`;
       if (r.schedule && !r.ok) detail += `<div class="sub">진행 일정: ${esc(r.schedule)}</div>`;
       const u = r.unit === '과목' ? '과목' : '';
@@ -735,14 +736,17 @@ ${planTxt || '- 남은 학기 없음'}
       const hits = K.searchCourses(val);
       if (val.trim() && !hits.length) return '<li class="msg" style="padding:7px 10px">검색 결과가 없어요. 과목명 일부나 학수번호로 찾아보세요.</li>';
       const have = new Set(state.courses.map((c) => K.norm(c.t)));
-      return hits.map((c) => { const dup = have.has(K.norm(c.t)); return `<li><button type="button" data-add="${esc(c.t)}" data-cr="${esc(c.cr)}" data-no="${esc(c.no || '')}"${dup ? ' disabled' : ''}><span>${esc(c.t)}</span><small>${dup ? '이미 목록에 있음' : `${c.no ? esc(c.no) + ', ' : ''}${esc(c.cr)}학점`}</small></button></li>`; }).join('');
+      return hits.map((c) => {
+        if (c.field != null) return `<li><button type="button" data-add="${esc(c.t)}" data-field="${c.field}"><span>${esc(c.t)}</span><small>${esc(c.note)}</small></button></li>`;
+        const dup = have.has(K.norm(c.t)); return `<li><button type="button" data-add="${esc(c.t)}" data-cr="${esc(c.cr)}" data-no="${esc(c.no || '')}"${dup ? ' disabled' : ''}><span>${esc(c.t)}</span><small>${dup ? '이미 목록에 있음' : `${c.no ? esc(c.no) + ', ' : ''}${esc(c.cr)}학점`}</small></button></li>`; }).join('');
     };
     q.addEventListener('input', () => { $('#suggest').innerHTML = suggestHtml(q.value); });
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const f = $('#suggest button[data-add]:not(:disabled)'); if (f) f.click(); } if (e.key === 'ArrowDown') { const f = $('#suggest button[data-add]:not(:disabled)'); if (f) { e.preventDefault(); f.focus(); } } });
     $('#suggest').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-add]:not(:disabled)');
       if (!b) return;
-      addCourses([{ t: b.dataset.add, cr: Number(b.dataset.cr), no: b.dataset.no || null }]);
+      if (b.dataset.field != null) K.FIELD_OPTS[Number(b.dataset.field)].parts.forEach((x) => { const ex = state.courses.find((y) => K.norm(y.t) === K.norm(x.t)); if (ex) { ex.cr = x.cr; ex.cat = x.cat; } else state.courses.push({ ...x, no: null }); });
+      else addCourses([{ t: b.dataset.add, cr: Number(b.dataset.cr), no: b.dataset.no || null }]);
       q.value = ''; $('#suggest').innerHTML = ''; q.focus(); state.sampleName = null; render();
     });
 
@@ -767,8 +771,12 @@ ${planTxt || '- 남은 학기 없음'}
     $('#suggest2').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-add]:not(:disabled)');
       if (!b) return;
-      const ex = state.courses.find((x) => K.norm(x.t) === K.norm(b.dataset.add));
-      if (ex) ex.ip = true; else state.courses.push({ t: b.dataset.add, cr: Number(b.dataset.cr), no: b.dataset.no || null, ip: true });
+      if (b.dataset.field != null) {
+        K.FIELD_OPTS[Number(b.dataset.field)].parts.forEach((x) => { const ex = state.courses.find((y) => K.norm(y.t) === K.norm(x.t)); if (ex) { ex.ip = true; ex.cr = x.cr; ex.cat = x.cat; } else state.courses.push({ ...x, no: null, ip: true }); });
+      } else {
+        const ex = state.courses.find((x) => K.norm(x.t) === K.norm(b.dataset.add));
+        if (ex) ex.ip = true; else state.courses.push({ t: b.dataset.add, cr: Number(b.dataset.cr), no: b.dataset.no || null, ip: true });
+      }
       q2.value = ''; $('#suggest2').innerHTML = ''; q2.focus(); state.sampleName = null; render();
     });
     $('#parse2').addEventListener('click', () => {
