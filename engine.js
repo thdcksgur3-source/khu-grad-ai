@@ -537,6 +537,7 @@
   function regSoFar(input, now) {
     const o = input.official || {};
     if (o.regCount != null && !Number.isNaN(Number(o.regCount))) return { n: Number(o.regCount), known: true };
+    if (input.regCount != null && !Number.isNaN(Number(input.regCount))) return { n: Number(input.regCount), known: true }; // 예시 학생처럼 등록 학기 수를 따로 아는 경우
     const cur = currentTerm(now) || (() => { const t = nextTerm(now); return t.sem === 1 ? { year: t.year - 1, sem: 2 } : { year: t.year, sem: 1 }; })();
     const y = Number(input.year);
     return { n: Math.max(0, (cur.year - y) * 2 + cur.sem), known: false };
@@ -685,7 +686,8 @@
       // ⑦ 총 학점 부족분: 관심 분야 전공선택 → 자유 선택
       const planned = items.reduce((a, i) => a + i.cr, 0);
       let totShort = row('total').short - planned;
-      pool((c) => interests.includes(c.a) && !inList(res.g.basic_courses, c.t) && !inList(res.g.required_courses, c.t))
+      // 독립심화학습처럼 교수와 따로 정해야 하는 과목은 졸업학점 채우기용으로 넣지 않는다
+      pool((c) => interests.includes(c.a) && !inList(res.g.basic_courses, c.t) && !inList(res.g.required_courses, c.t) && !/독립심화학습/.test(c.t))
         .forEach((c) => { if (totShort > 0 && budget >= c.cr && totShort >= 3 && add({ t: c.t, no: c.no, cr: c.cr }, '관심 분야 (졸업학점 채우기)')) totShort -= c.cr; });
       while (totShort > 0 && budget >= 3) { ph += 1; add({ t: `자유 선택 ${ph}`, cr: 3, cat: '일반선택', placeholder: true }, '졸업학점 채우기 (교양·일반선택 아무거나)'); totShort -= 3; }
 

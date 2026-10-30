@@ -102,11 +102,38 @@
       liberal: { dist: 0, free: 0, general: 0, areas: [] },
     },
     bdas: {
-      name: '4학년 2학기 재학 중',
-      year: 2022, dept: '빅데이터응용학과', track: 'single', sw: 0, engManual: 3, examDone: false, thesisDone: false,
-      courses: list('경영통계학,경제학원론,회계원리,책임경영,빅데이터수학,빅데이터프로그래밍1,빅데이터통계학,마케팅원론,재무관리,조직행동론,빅데이터프로그래밍2,빅데이터세미나,머신러닝기초및응용,빅데이터개론,투자론,비즈니스애널리틱스,인간의가치탐색,세계와시민,빅뱅에서문명까지,성찰과표현,주제연구,대학영어')
-        .concat(ipList('DB기초및응용,소셜네트워크과학,딥러닝기초및응용,빅데이터알고리즘')),
-      liberal: { dist: 12, free: 3, general: 15, areas: [] },
+      // 가상 학생: 24학번, 2026-1 휴학 후 2026-2에 3학년 1학기(5번째 등록) 재학 중
+      name: '3학년 1학기 재학 중, 1학기 휴학',
+      year: 2024, dept: '빅데이터응용학과', track: 'single', sw: 0, engManual: 0, examDone: false, thesisDone: false, reg: 5,
+      courses: [
+        { t: '경영통계학', no: 'MGMT1001', cr: 3, cat: '전공기초', yr: 2024, sm: 1 },
+        { t: '회계원리', no: 'ACCT1001', cr: 3, cat: '전공기초', yr: 2024, sm: 1 },
+        { t: '빅데이터수학', no: 'BDAS1001', cr: 3, cat: '전공필수', yr: 2024, sm: 1 },
+        { t: '인간의가치탐색', no: 'GEC1102', cr: 3, cat: '교양필수', yr: 2024, sm: 1 },
+        { t: '성찰과표현', no: 'GEC1105', cr: 3, cat: '교양필수', yr: 2024, sm: 1 },
+        { t: '대학영어', no: 'GEC1403', cr: 2, cat: '교양필수', yr: 2024, sm: 1 },
+        { t: '경영학원론', no: 'MGMT1007', cr: 3, cat: '전공기초', yr: 2024, sm: 2 },
+        { t: '책임경영', no: 'MGMT1003', cr: 3, cat: '전공기초', yr: 2024, sm: 2 },
+        { t: '빅데이터프로그래밍1', no: 'BDAS1002', cr: 3, cat: '전공필수', yr: 2024, sm: 2 },
+        { t: '세계와시민', no: 'GEC1104', cr: 3, cat: '교양필수', yr: 2024, sm: 2 },
+        { t: '인공지능과라이프3.0', no: 'GED1999', cr: 3, cat: '배분이수', yr: 2024, sm: 2, area: '지능·정보·미래' },
+        { t: '빅데이터개론', no: 'BDAS2004', cr: 3, cat: '전공선택', yr: 2024, sm: 2 },
+        { t: '빅데이터통계학', no: 'BDAS2001', cr: 3, cat: '전공필수', yr: 2025, sm: 1 },
+        { t: '빅데이터프로그래밍2', no: 'BDAS1004', cr: 3, cat: '전공선택', yr: 2025, sm: 1 },
+        { t: '마케팅원론', no: 'MGMT2002', cr: 3, cat: '전공필수', yr: 2025, sm: 1, eng: 'mark' },
+        { t: '빅뱅에서문명까지', no: 'GEC0103', cr: 3, cat: '교양필수', yr: 2025, sm: 1 },
+        { t: '생명,영원한블루오션', no: 'GED1106', cr: 3, cat: '배분이수', yr: 2025, sm: 1, area: '생명·우주·인간' },
+        { t: '조직행동론', no: 'MGMT2005', cr: 3, cat: '전공필수', yr: 2025, sm: 2, eng: 'mark' },
+        { t: 'DB기초및응용', no: 'BDAS2006', cr: 3, cat: '전공선택', yr: 2025, sm: 2 },
+        { t: '머신러닝기초및응용', no: 'BDAS2005', cr: 3, cat: '전공선택', yr: 2025, sm: 2 },
+        { t: '주제연구', no: 'GEC2001', cr: 3, cat: '교양필수', yr: 2025, sm: 2 },
+        { t: '재무관리', no: 'MGMT2004', cr: 3, cat: '전공필수', ip: true },
+        { t: '딥러닝기초및응용', no: 'BDAS3001', cr: 3, cat: '전공선택', ip: true },
+        { t: '빅데이터알고리즘', no: 'BDAS3005', cr: 3, cat: '전공선택', ip: true },
+        { t: '플랫폼이해와응용', no: 'BDAS3003', cr: 3, cat: '전공선택', ip: true },
+        { t: '빅데이터마케팅', no: 'BDAS3007', cr: 3, cat: '전공선택', ip: true },
+      ],
+      liberal: { dist: 0, free: 0, general: 0, areas: [] },
     },
   };
   const PASTE_EXAMPLE = [
@@ -124,7 +151,7 @@
   const state = {
     year: 2024, dept: '경영학과', track: 'single', sw: 0, engManual: 0, examDone: false, thesisDone: false,
     courses: [], liberal: { dist: 0, free: 0, general: 0, areas: [], reqChecked: [], engExempt: false },
-    interests: [], tab: 'paste', sampleName: null, official: null, gyeyeol: null, maxCr: 18, view: 'audit', withdraw: [],
+    interests: [], tab: 'paste', sampleName: null, official: null, gyeyeol: null, regCount: null, maxCr: 18, view: 'audit', withdraw: [],
   };
   let lastCount = -1;
   // ChatKHU 질문: 사용자가 고친 내용은 화면이 다시 그려져도 유지한다 (다른 학생을 불러오면 초기화)
@@ -481,7 +508,7 @@ ${planTxt || '- 남은 학기 없음'}
       out.innerHTML = `<div class="sheet-head"><div><h2>졸업사정표</h2><p class="who">${esc(whoDept(res))} ${res.year}학번, ${res.track === 'multi' ? '다전공' : '단일전공'}</p></div></div>
       <div class="road" style="margin-top:22px"><p class="headline">졸업진단표를 올리면, 이 자리에 졸업까지 남은 학점과 다음 학기에 들을 과목이 나와요.</p>
       <ol style="margin:12px 0 0;padding-left:20px;line-height:1.9"><li>인포21 → 졸업사정 조회에서 <b>졸업진단표를 PDF로 저장</b>해요.</li><li>왼쪽 <b>졸업진단표 PDF 올리기</b>를 눌러 파일을 골라요. 학번·학과·이번 학기 과목까지 자동으로 들어가요.</li><li>진단표가 없으면 성적 표를 붙여넣거나 과목을 검색해서 넣어도 돼요.</li></ol>
-      <div class="btnrow" style="margin-top:14px"><span class="msg">먼저 둘러보려면:</span><button class="btn ghost small" type="button" data-sample2="acct">회계 19학번</button><button class="btn ghost small" type="button" data-sample2="mgmt">경영 21학번</button><button class="btn ghost small" type="button" data-sample2="bdas">빅데이터 22학번</button></div></div>
+      <div class="btnrow" style="margin-top:14px"><span class="msg">먼저 둘러보려면:</span><button class="btn ghost small" type="button" data-sample2="acct">회계 19학번</button><button class="btn ghost small" type="button" data-sample2="mgmt">경영 21학번</button><button class="btn ghost small" type="button" data-sample2="bdas">빅데이터 24학번</button></div></div>
       <p class="sub" style="margin-top:14px">성적은 이 브라우저 안에서만 계산되고 어디에도 저장되지 않아요.</p>`;
       return;
     }
@@ -618,7 +645,7 @@ ${planTxt || '- 남은 학기 없음'}
 
   function bind() {
     $('#year').innerHTML = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((y) => `<option value="${y}">${y}학번 (${String(y).slice(2)}학번)</option>`).join('');
-    $('#year').addEventListener('change', (e) => { state.year = Number(e.target.value); state.official = null; state.gyeyeol = null; const moved = state.year < 2022 && state.dept === '빅데이터응용학과'; if (moved) state.dept = '경영학과'; $('#deptmsg').textContent = moved ? '빅데이터응용학과는 22학번부터 있어서 경영학과로 바꿨어요.' : ''; state.sampleName = null; render(); });
+    $('#year').addEventListener('change', (e) => { state.year = Number(e.target.value); state.official = null; state.regCount = null; state.gyeyeol = null; const moved = state.year < 2022 && state.dept === '빅데이터응용학과'; if (moved) state.dept = '경영학과'; $('#deptmsg').textContent = moved ? '빅데이터응용학과는 22학번부터 있어서 경영학과로 바꿨어요.' : ''; state.sampleName = null; render(); });
     $('#dept').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) { setDept(b.dataset.v); } });
     // 계열 학생은 진입 학과만 바꿔 보는 것이라 진단표 집계(state.official)를 유지한다
     function setDept(v) {
@@ -647,7 +674,7 @@ ${planTxt || '- 남은 학기 없음'}
         state.courses = r.courses;
         state.sw = 0; state.engManual = 0; // 진단표의 공식 SW 학점·영어강의 수는 state.official로 들어가 과목 목록과 함께 계산된다
         state.liberal = { dist: 0, free: 0, general: 0, areas: state.liberal.areas, reqChecked: [], engExempt: false };
-        state.official = Object.keys(r.official).length ? r.official : null;
+        state.official = Object.keys(r.official).length ? r.official : null; state.regCount = null;
         promptEdit = null; state.withdraw = [];
         state.interests = []; state.interestsSet = false;
         state.sampleName = null;
@@ -752,7 +779,7 @@ ${planTxt || '- 남은 학기 없음'}
       render();
     });
     $('#maxcr').addEventListener('change', (e) => { state.maxCr = Number(e.target.value); renderResult(); });
-    $('#clear').addEventListener('click', () => { state.courses = []; state.sampleName = null; state.official = null; state.gyeyeol = null; promptEdit = null; state.withdraw = []; render(); });
+    $('#clear').addEventListener('click', () => { state.courses = []; state.regCount = null; state.sampleName = null; state.official = null; state.gyeyeol = null; promptEdit = null; state.withdraw = []; render(); });
 
     $('#libreq').addEventListener('change', (e) => {
       const t = e.target.dataset.req; if (!t) return;
@@ -786,7 +813,7 @@ ${planTxt || '- 남은 학기 없음'}
       if (b) $('#deptmsg').textContent = '';
       if (!b) return;
       const s = SAMPLES[b.dataset.sample];
-      Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, engManual: s.engManual || 0, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses })));
+      Object.assign(state, JSON.parse(JSON.stringify({ year: s.year, dept: s.dept, track: s.track, sw: s.sw, engManual: s.engManual || 0, examDone: s.examDone, thesisDone: s.thesisDone, courses: s.courses }))); state.regCount = s.reg || null;
       state.liberal = { reqChecked: [], engExempt: false, ...JSON.parse(JSON.stringify(s.liberal)) };
       state.interests = []; state.interestsSet = false; state.sampleName = s.name; state.official = null; state.gyeyeol = null; promptEdit = null; state.withdraw = [];
       render();
