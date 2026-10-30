@@ -164,9 +164,31 @@ console.log('[8] 현장실습 학점 인정과 졸업시험 대체');
   const fieldTxt = ['졸업진단표', '전공학점', '1 A11239 회계학 학점취득', '05 ACCT2001 세법총론 3 2024 / 1', 'COOP3004 * 단기현장실습(전공) 6 2025 / 1 계절', 'COOP3001 * 장기현장실습(전공) 9 2025 / 2', '11 ACCT1001 회계원리 3 2023 / 1'].join('\n');
   const fr = (K.parseAny(fieldTxt, { now: NOW }).courses || []).filter((c) => /현장실습/.test(c.t));
   check(fr.length === 2 && fr.every((c) => c.cat === '전공선택' && !/^\*/.test(c.t)) && fr.map((c) => c.cr).join() === '6,9', `진단표 현장실습 행 인식: ${JSON.stringify(fr.map((c) => [c.t, c.cat, c.cr]))}`);
+  const dblF = au('회계·세무학과', 2023, [{ t: '장기현장실습(다전공)', cr: 9, cat: '전공선택' }]);
+  check(dblF.courses[0].kind === '타전공' && ex(dblF).ok === false, '(다전공) 현장실습은 1전공 전공선택·졸업시험 대체에 넣지 않음');
+  check(au('경영학과', 2024, [{ t: '단기현장실습(전공)', cr: 6 }]).courses[0].kind === '전공선택' && au('경영학과', 2024, [{ t: '단기현장실습', cr: 6 }]).courses[0].kind === '일반선택', '과목명 (전공)/괄호 없음으로 이수구분 판정');
+  // 실제 졸업요건 충족 사례(회계 21학번): 현장실습(경영과목군) 15학점 중 9학점이 [별표2] 대체 인정으로 회계과목군을 채운다
+  const real21 = au('회계·세무학과', 2021, [{ t: '세법총론', cr: 3 }, { t: '회계정보애널리틱스', no: 'ACCT3013', cr: 3 }, { t: '소비자행동론', cr: 3 }, { t: '투자론', cr: 3 }, { t: '조직개발', cr: 3 },
+    { t: '단기현장실습(전공)', no: 'COOP3004', cr: 6, cat: '전공선택' }, { t: '장기현장실습(전공)', no: 'COOP3001', cr: 9, cat: '전공선택' }]);
+  const gr = real21.rows.find((r) => r.id === 'm-elec').groups;
+  check(gr.every((x) => x.have >= x.need), `현장실습 + 별표2 대체 인정: ${JSON.stringify(gr.map((x) => [x.name, x.have, x.need]))}`);
   check(K.searchCourses('현장실습').filter((c) => c.field != null).length === 7, '검색에 현장실습 선택지 7개');
   const plan = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single', courses: K.FIELD_OPTS[0].parts, liberal: {}, now: NOW }, { maxCr: 18 });
   check(!plan.error && (plan.finalRows || []).filter((r) => !r.flag && !r.ok).length === 0, '현장실습 포함 졸업 계획 완성');
+}
+
+// 9) 회계학과 단일전공 [별표2]: 경영과목군 ↔ 회계과목군 대체 인정 (2019~2025 9학점, 2026 12학점·회계 쪽 6학점)
+console.log('[9] 회계·경영 과목군 교차 대체 인정');
+{
+  const mg = ['회사법', '투자론', '금융리스크관리', '경영커뮤니케이션', '생산운영관리', '의사결정모형및분석', '마케팅조사론', 'ESG경영', '소비자행동론'].map((t) => ({ t, cr: 3 }));
+  const acc = [{ t: '세법총론', cr: 3 }, { t: '관리회계2', cr: 3 }];
+  const grp = (year, track = 'single') => K.audit({ year, dept: '회계·세무학과', track, courses: acc.concat(mg), liberal: {}, now: NOW }).rows.find((r) => r.id === 'm-elec').groups;
+  const g19 = grp(2019);
+  check(g19[0].have === 15 && g19[0].sub === 9 && g19[1].have === 18, `19학번 경영 27 → 회계로 9학점 대체: ${JSON.stringify(g19.map((x) => [x.name, x.have]))}`);
+  const g26 = grp(2026);
+  check(g26[0].sub === 6, `26학번은 회계과목군 대체 6학점까지: ${JSON.stringify(g26.map((x) => [x.name, x.have]))}`);
+  const gm = grp(2019, 'multi');
+  check(!gm.some((x) => x.sub), '다전공은 대체 인정 없음');
 }
 
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
