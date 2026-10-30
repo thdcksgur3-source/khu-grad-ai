@@ -146,5 +146,28 @@ check(exRow.subs.length >= 5 && /3월/.test(exRow.schedule || ''), '빅데이터
 const dbl = K.audit({ year: 2023, dept: '경영학과', track: 'single', courses: [], liberal: {}, now: NOW }).doubles;
 const dA = dbl.find((d) => /회계/.test(d.dept)), dB = dbl.find((d) => /빅데이터/.test(d.dept));
 check(dA && /졸업시험/.test(dA.grad2.exam) && /졸업논문\(회계학\)/.test(dA.grad2.thesis) && dB && /졸업프로젝트/.test(dB.grad2.exam), '다전공: 2전공 학과의 졸업시험·졸업프로젝트와 졸업논문을 따로 안내');
+// 8) 현장실습: 이수구분대로 세고, 전공 인정분만 졸업시험 대체 (경영대 FAQ), 빅데이터는 학점 취득으로 졸업프로젝트 대체
+console.log('[8] 현장실습 학점 인정과 졸업시험 대체');
+{
+  const au = (dept, year, courses) => K.audit({ year, dept, track: 'single', courses, liberal: {}, now: NOW });
+  const ex = (r) => r.rows.find((x) => x.id === 'exam');
+  const long12 = au('경영학과', 2024, K.FIELD_OPTS[0].parts);
+  const f = long12.courses.filter((c) => c.field);
+  check(f.length === 2 && f.find((c) => c.kind === '전공선택').cr === 9 && f.find((c) => c.kind === '일반선택').cr === 3, '장기현장실습 12학점: 전공선택 9 + 일반선택 3');
+  check(ex(long12).ok === true, '전공 인정 현장실습은 졸업시험 대체');
+  check(ex(au('회계·세무학과', 2019, K.FIELD_OPTS[4].parts)).ok === false, '일반선택 인정 현장실습은 졸업시험 대체 안 됨');
+  check(ex(au('회계·세무학과', 2019, [{ t: '현장실습(장기)', cr: 12, cat: '전공선택' }])).ok === true, '진단표 전공선택 현장실습은 대체');
+  check(ex(au('빅데이터응용학과', 2024, K.FIELD_OPTS[6].parts)).ok === true, '빅데이터: 현장실습 학점 취득으로 졸업프로젝트 대체');
+  check(ex(au('경영학과', 2024, [{ t: '캡스톤디자인(경영학)', cr: 3 }])).ok === true, '경영: 캡스톤디자인(경영학) 대체');
+  check(ex(au('회계·세무학과', 2024, [{ t: '캡스톤디자인(경영학)', cr: 3 }])).ok === false, '회계: 캡스톤은 대체 요건 아님');
+  // 실제 진단표 형식: 'COOP3004 * 단기현장실습(전공) 6 2025 / 1 계절' (전공선택 05 구간)
+  const fieldTxt = ['졸업진단표', '전공학점', '1 A11239 회계학 학점취득', '05 ACCT2001 세법총론 3 2024 / 1', 'COOP3004 * 단기현장실습(전공) 6 2025 / 1 계절', 'COOP3001 * 장기현장실습(전공) 9 2025 / 2', '11 ACCT1001 회계원리 3 2023 / 1'].join('\n');
+  const fr = (K.parseAny(fieldTxt, { now: NOW }).courses || []).filter((c) => /현장실습/.test(c.t));
+  check(fr.length === 2 && fr.every((c) => c.cat === '전공선택' && !/^\*/.test(c.t)) && fr.map((c) => c.cr).join() === '6,9', `진단표 현장실습 행 인식: ${JSON.stringify(fr.map((c) => [c.t, c.cat, c.cr]))}`);
+  check(K.searchCourses('현장실습').filter((c) => c.field != null).length === 7, '검색에 현장실습 선택지 7개');
+  const plan = K.planGraduation({ year: 2024, dept: '경영학과', track: 'single', courses: K.FIELD_OPTS[0].parts, liberal: {}, now: NOW }, { maxCr: 18 });
+  check(!plan.error && (plan.finalRows || []).filter((r) => !r.flag && !r.ok).length === 0, '현장실습 포함 졸업 계획 완성');
+}
+
 console.log(`\n통과 ${pass}개, 실패 ${fail}개`);
 process.exit(fail ? 1 : 0);
