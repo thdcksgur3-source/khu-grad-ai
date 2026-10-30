@@ -39,17 +39,18 @@
      - 이수구분은 학과장이 전공선택 또는 일반선택으로 인정. 장기현장실습의 경영대학 전공선택 인정은 최대 9학점, 나머지는 일반선택
      - 단기현장실습은 전공선택 또는 일반선택 중 하나로만 인정(나눠서 인정하지 않음)
      - 단기 20~39일 3학점, 40일 이상 6학점(졸업까지 최대 9) / 장기 40~55일 6, 56~71일 9, 72일 이상 12학점(1회, 최대 12) / 통산 21학점
-     - 졸업시험 대체는 경영대학 전공학점으로 인정받은 경우만 (경영대 FAQ). 빅데이터는 현장실습 학점 취득자를 졸업프로젝트 통과로 인정 */
+     - 졸업시험 대체는 경영대학 전공학점으로 인정받은 경우만 (경영대 FAQ). 빅데이터는 현장실습 학점 취득자를 졸업프로젝트 통과로 인정
+     - 학점인정 과목명: 단기·장기현장실습(전공)=전공선택, (다전공)=다전공 전공선택, 괄호 없음=일반선택. 1회 현장실습은 1개 전공으로만 인정 */
   const FIELD_RE = /현장실습|현장연수/;
   const isField = (c) => FIELD_RE.test(c.t || '');
   const FIELD_OPTS = [
-    { label: '장기현장실습 12학점 (72일 이상)', parts: [{ t: '장기현장실습(전공선택)', cr: 9, cat: '전공선택' }, { t: '장기현장실습(일반선택)', cr: 3, cat: '일반선택' }], note: '전공선택 9 + 일반선택 3' },
-    { label: '장기현장실습 9학점 (56~71일)', parts: [{ t: '장기현장실습(전공선택)', cr: 9, cat: '전공선택' }], note: '전공선택 9' },
-    { label: '장기현장실습 6학점 (40~55일)', parts: [{ t: '장기현장실습(전공선택)', cr: 6, cat: '전공선택' }], note: '전공선택 6' },
-    { label: '단기현장실습 6학점 (40일 이상), 전공 인정', parts: [{ t: '단기현장실습(전공선택)', cr: 6, cat: '전공선택' }], note: '전공선택 6' },
-    { label: '단기현장실습 6학점 (40일 이상), 일반선택 인정', parts: [{ t: '단기현장실습(일반선택)', cr: 6, cat: '일반선택' }], note: '일반선택 6' },
-    { label: '단기현장실습 3학점 (20~39일), 전공 인정', parts: [{ t: '단기현장실습(전공선택)', cr: 3, cat: '전공선택' }], note: '전공선택 3' },
-    { label: '단기현장실습 3학점 (20~39일), 일반선택 인정', parts: [{ t: '단기현장실습(일반선택)', cr: 3, cat: '일반선택' }], note: '일반선택 3' },
+    { label: '장기현장실습 12학점 (72일 이상)', parts: [{ t: '장기현장실습(전공)', cr: 9, cat: '전공선택' }, { t: '장기현장실습', cr: 3, cat: '일반선택' }], note: '전공선택 9 + 일반선택 3' },
+    { label: '장기현장실습 9학점 (56~71일)', parts: [{ t: '장기현장실습(전공)', cr: 9, cat: '전공선택' }], note: '전공선택 9' },
+    { label: '장기현장실습 6학점 (40~55일)', parts: [{ t: '장기현장실습(전공)', cr: 6, cat: '전공선택' }], note: '전공선택 6' },
+    { label: '단기현장실습 6학점 (40일 이상), 전공 인정', parts: [{ t: '단기현장실습(전공)', cr: 6, cat: '전공선택' }], note: '전공선택 6' },
+    { label: '단기현장실습 6학점 (40일 이상), 일반선택 인정', parts: [{ t: '단기현장실습', cr: 6, cat: '일반선택' }], note: '일반선택 6' },
+    { label: '단기현장실습 3학점 (20~39일), 전공 인정', parts: [{ t: '단기현장실습(전공)', cr: 3, cat: '전공선택' }], note: '전공선택 3' },
+    { label: '단기현장실습 3학점 (20~39일), 일반선택 인정', parts: [{ t: '단기현장실습', cr: 3, cat: '일반선택' }], note: '일반선택 3' },
   ];
   const engCounts = (c) => isEng(c) && !(LIB_CAT.test(c.cat || '') || LIB_CAT.test(c.kind || '') || /^GE/.test(c.no || '') || isLibReq(c.t));
   function swStatus(courses, input, need) {
@@ -143,7 +144,12 @@
     const info = lookup(c);
     const cat0 = c.cat || (info && info.cat);
     // 현장실습: 진단표(또는 직접 고른) 이수구분을 따른다. 전공으로 인정받았으면 본전공 전공선택(과목군은 학과 확인)
-    if (isField(c)) return /^전공/.test(cat0 || '') ? { kind: '전공선택', grp: '경영', field: true } : { kind: '일반선택', field: true };
+    if (isField(c)) {
+      if (/다전공/.test(c.t)) return { kind: '타전공', from: '다전공', field: true, dbl: true }; // 2전공으로 인정된 학점 → 1전공 계산에서 제외
+      const major = cat0 ? /^전공/.test(cat0) : /\(전공\)/.test(c.t);
+      // 세칙에 과목군 기준이 없어 경영과목군으로 센다. 회계학과 단일전공은 [별표2] 대체 인정(9학점)으로 회계과목군 부족분을 채울 수 있다
+      return major ? { kind: '전공선택', grp: '경영', field: true } : { kind: '일반선택', field: true };
+    }
     if (['배분이수', '자유이수', '일반선택', '교양필수'].includes(cat0)) return { kind: cat0 };
     const p = prefixOf(c);
     const biz = (info && Object.keys(info.k).length > 0) || ['MGMT', 'ACCT', 'BDAS'].includes(p);
@@ -233,6 +239,20 @@
     const eg = req.elective_groups || {};
     const groupCr = {};
     electives.forEach((c) => { groupCr[c.grp] = (groupCr[c.grp] || 0) + (Number(c.cr) || 0); });
+    // 회계학과 단일전공 [별표2] 타전공 인정 과목표: 경영대학 전공과목은 회계과목군으로, 회계학과 전공과목은 경영과목군으로
+    // 대체 인정 (2019~2025 세칙 합계 9학점, 2026 세칙 12학점이며 회계과목군 대체는 6학점까지)
+    let crossSub = null;
+    if (key === '회계·세무학과' && !multi && eg['회계'] != null && eg['경영'] != null) {
+      let left = year >= 2026 ? 12 : 9;
+      const toAcctMax = year >= 2026 ? 6 : left;
+      const surplus = (nm) => (groupCr[nm] || 0) - eg[nm];
+      const short = (nm) => eg[nm] - (groupCr[nm] || 0);
+      const toAcct = Math.max(0, Math.min(short('회계'), surplus('경영'), toAcctMax, left));
+      if (toAcct > 0) { groupCr['회계'] = (groupCr['회계'] || 0) + toAcct; groupCr['경영'] -= toAcct; left -= toAcct; }
+      const toMgmt = Math.max(0, Math.min(short('경영'), surplus('회계'), left));
+      if (toMgmt > 0) { groupCr['경영'] = (groupCr['경영'] || 0) + toMgmt; groupCr['회계'] -= toMgmt; left -= toMgmt; }
+      if (toAcct || toMgmt) crossSub = { toAcct, toMgmt, max: year >= 2026 ? 12 : 9 };
+    }
     const capKey = Object.keys(eg).find((k) => k.endsWith('_max'));
     let capInfo = null;
     if (capKey) {
@@ -248,7 +268,8 @@
     const groupChecks = Object.entries(eg).filter(([k]) => !k.endsWith('_max')).map(([k, need]) => {
       const name = k.replace('_min', '');
       const unsure = electives.filter((c) => c.grp === name && c.unsure).reduce((a, c) => a + (Number(c.cr) || 0), 0);
-      return { name: `${name}과목군`, need, have: groupCr[name] || 0, unsure };
+      const sub = crossSub && (name === '회계' ? crossSub.toAcct : name === '경영' ? crossSub.toMgmt : 0);
+      return { name: `${name}과목군`, need, have: groupCr[name] || 0, unsure, ...(sub ? { sub, subFrom: name === '회계' ? '경영과목군' : '회계과목군' } : {}) };
     });
 
     /* --- 교양 --- */
@@ -304,7 +325,7 @@
     });
     const examLabel = common.graduation_exam ? '졸업시험 통과 또는 대체' : '졸업프로젝트 통과';
     // 졸업시험·졸업프로젝트 대체: 전공으로 인정받은 현장실습(빅데이터는 현장실습 학점 취득), 경영학과는 캡스톤디자인(경영학)도
-    const fieldCs = courses.filter((c) => c.field && (key === '빅데이터응용학과' || c.kind === '전공선택'));
+    const fieldCs = courses.filter((c) => c.field && !c.dbl && (key === '빅데이터응용학과' || c.kind === '전공선택'));
     const capstone = key === '경영학과' ? courses.filter((c) => /^캡스톤디자인1?\(경영학\)$/.test((c.t || '').replace(/\s/g, ''))) : [];
     const subBy = fieldCs.concat(capstone);
     const examAuto = subBy.length > 0;
@@ -325,8 +346,9 @@
     if (multi && year <= 2023) tips.push(`다전공 전공학점은 세칙 부칙상 "선발연도" 기준으로 적용된다고 적혀 있어요. 2024학년도 이후에 다전공으로 선발됐다면 입학년도 기준(${byYear(g.multi.total, year)}학점)이 아니라 2024 개정 기준(39학점)이 적용될 수도 있으니 학과에 확인하세요.`);
     if (common.graduation_exam) tips.push('졸업시험은 공인회계사 1차 합격, 현장실습, 공인 경진대회 입상 등으로 대체할 수 있어요. 단, 현장실습은 경영대학 전공학점으로 인정받은 경우에만 졸업시험이 면제돼요 (경영대 학사 FAQ).');
     const fieldAll = courses.filter((c) => c.field);
-    if (fieldAll.length) tips.push(`현장실습 ${sum(fieldAll)}학점은 ${['전공선택', '일반선택'].map((k) => [k, sum(fieldAll.filter((c) => c.kind === k))]).filter(([, n]) => n).map(([k, n]) => `${k} ${n}학점`).join(', ')}으로 셌어요. 이수구분은 학과장이 전공 관련성을 보고 전공선택 또는 일반선택으로 정하고, 경영대학 장기현장실습은 전공선택 최대 9학점까지 인정돼요. 과목군(${key === '회계·세무학과' ? '회계/경영' : key === '빅데이터응용학과' ? '빅데이터/경영' : '경영'}) 인정은 학과에 확인하세요.`);
-    else tips.push('현장실습도 학점으로 인정돼요. 단기 최대 9학점, 장기 1회 최대 12학점(통산 21학점)이고, 경영대학 장기현장실습은 전공선택 9학점까지 인정돼요. 4개 학기 이상, 전공 15학점 이상 이수하면 신청할 수 있어요. 과목 검색에서 "현장실습"을 치면 계획에 넣어 볼 수 있어요.');
+    if (fieldAll.length) tips.push(`현장실습 ${sum(fieldAll)}학점은 ${[['전공선택', '전공선택'], ['일반선택', '일반선택'], ['타전공', '다전공(2전공)']].map(([k, lb]) => [lb, sum(fieldAll.filter((c) => c.kind === k))]).filter(([, n]) => n).map(([k, n]) => `${k} ${n}학점`).join(', ')}으로 셌어요. 과목명이 '(전공)'이면 전공선택, '(다전공)'이면 2전공 학점, 괄호가 없으면 일반선택이에요. 이수구분은 서류심사 때 학과장이 전공 관련성을 보고 정하고, 1회 현장실습은 1개 전공으로만 인정돼요. 경영대학 장기현장실습은 전공선택 최대 9학점이에요. 세칙에 현장실습의 과목군 기준이 없어 경영과목군으로 셌으니, 과목군 인정은 학과에 확인하세요.`);
+    else tips.push('현장실습도 학점으로 인정돼요. 단기 최대 9학점, 장기 1회 최대 12학점(통산 21학점)이고, 경영대학 장기현장실습은 전공선택 9학점까지 인정돼요. 4개 학기 이상, 전공 15학점 이상 이수하면 신청할 수 있어요. 단기는 계절학기, 장기는 정규학기에 해요. 과목 검색에서 "현장실습"을 치면 계획에 넣어 볼 수 있어요.');
+    if (crossSub) tips.push(`${crossSub.toAcct ? `경영과목군 ${crossSub.toAcct}학점을 회계과목군으로` : ''}${crossSub.toAcct && crossSub.toMgmt ? ', ' : ''}${crossSub.toMgmt ? `회계과목군 ${crossSub.toMgmt}학점을 경영과목군으로` : ''} 대체 인정해서 셌어요. ${year}학번 세칙 [별표2]에 따라 단일전공자는 경영대학 전공과목을 서로 다른 과목군으로 ${crossSub.max}학점까지 대체 인정받을 수 있어요${year >= 2026 ? ' (회계과목군 대체는 6학점까지)' : ''}. 미시경제학·거시경제학 같은 경제학과 지정 과목도 이 한도 안에서 인정돼요.`);
     if (key === '회계·세무학과' && year <= 2023) tips.push('19~23학번 회계학과는 회사법·유가증권법·재무제표분석·가치평가론이 경영과목군이에요. 회계과목군 15학점 계산에서 빠지니 주의하세요.');
 
     /* --- 다전공 시뮬레이션 (경영대 안) --- */

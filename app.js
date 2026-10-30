@@ -233,7 +233,7 @@
     if (!items.length) { ul.innerHTML = '<li class="empty" style="display:block">아직 과목이 없어요. 졸업진단표를 올리거나 과목을 검색해서 추가하세요.</li>'; return; }
     const sorted = [...items].sort((a, b) => (b.ip ? 1 : 0) - (a.ip ? 1 : 0));
     ul.innerHTML = sorted.map((c) => `<li>
-      <div>${esc(c.t)} <span class="meta">${esc(c.cr)}학점${c.grp && c.kind === '전공선택' ? `, ${esc(c.grp)}과목군${c.unsure ? ' (세칙 목록 밖, 확인 필요)' : ''}` : ''}</span></div>
+      <div>${esc(c.t)} <span class="meta">${esc(c.cr)}학점${c.grp && c.kind === '전공선택' ? `, ${esc(c.grp)}과목군${c.unsure ? ' (세칙 목록 밖, 확인 필요)' : ''}${c.flexGrp ? ' (부족한 과목군에 배정)' : ''}` : ''}</span></div>
       <span class="kind ${kindClass(c.kind)}">${esc(c.kind === '타전공' ? `타전공(${c.from})` : c.kind)}${K.isSw(c) ? '<b class="swtag" title="SW 졸업요건 인정 과목">SW</b>' : ''}${K.isEng(c) ? (K.engCounts(c) ? '<b class="swtag engtag" title="전공 영어강의: 영어강좌 의무이수에 들어가요">영어</b>' : '<b class="swtag engtag off" title="교양·일반선택 영어강의라 영어강좌 의무이수(전공 3과목)에는 들어가지 않아요">영어(교양)</b>') : ''}</span>
       <button class="ipbtn" type="button" data-ip="${esc(c.t)}" aria-pressed="${!!c.ip}" title="이번 학기 수강 중이면 눌러서 표시">${c.ip ? '수강 중' : '이수'}</button>
       <button class="rm" data-rm="${esc(c.t)}" aria-label="${esc(c.t)} 빼기">×</button></li>`).join('');
@@ -276,7 +276,7 @@
       let detail = '';
       if (r.missing && r.missing.length) detail += `<div class="detail">${r.missing.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>`;
       if (r.choose && r.choose.done < r.choose.pick) detail += `<div class="sub">아래 중 ${r.choose.pick - r.choose.done}과목 더 선택: ${r.choose.options.map(esc).join(', ')}</div>`;
-      if (r.groups && r.groups.length) detail += r.groups.map((gr) => `<div class="sub">${esc(gr.name)} ${gr.have}/${gr.need}학점 ${gr.have >= gr.need ? '충족' : `(−${gr.need - gr.have})`}${gr.unsure ? `, 그중 ${gr.unsure}학점은 세칙 목록 밖 과목이라 확인 필요` : ''}</div>`).join('');
+      if (r.groups && r.groups.length) detail += r.groups.map((gr) => `<div class="sub">${esc(gr.name)} ${gr.have}/${gr.need}학점 ${gr.have >= gr.need ? '충족' : `(−${gr.need - gr.have})`}${gr.unsure ? `, 그중 ${gr.unsure}학점은 세칙 목록 밖 과목이라 확인 필요` : ''}${gr.sub ? ` (${esc(gr.subFrom)} ${gr.sub}학점 대체 인정 포함)` : ''}</div>`).join('');
       if (r.cap) detail += `<div class="sub">${esc(r.cap.name)}은 ${r.cap.max}학점까지만 전공선택으로 인정돼요. 지금 ${r.cap.have}학점${r.cap.over ? `이라 <b class="short">${r.cap.over}학점은 일반선택으로</b> 세었어요` : `, ${r.cap.max - r.cap.have}학점 더 인정받을 수 있어요`}.</div>`;
       if (r.areaNote) detail += `<div class="sub">배분이수 영역 ${esc(r.areaNote)}</div>`;
       if (r.engCourses && r.engCourses.length) detail += `<div class="detail">${r.engCourses.map((c) => `<span class="chip">${esc(c.t)}${c.ip ? ' (수강 중)' : ''}</span>`).join('')}</div>`;
